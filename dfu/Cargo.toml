@@ -1,0 +1,11 @@
+[package]
+name = "dfu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = { workspace = true }
+nonempty = "0.12.0"
+nusb = { workspace = true }
+regex = "1.11.1"
+

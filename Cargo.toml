@@ -1,0 +1,19 @@
+[package]
+name = "rs-dfu"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = [ "cli","dfu", "uf2"]
+default-members = ["cli", "dfu", "uf2"]
+
+[workspace.dependencies]
+nusb = "0.2.0"
+log = "0.4.27"
+env_logger = "0.11.8"
+
+[dependencies]
+dfu = { path = "dfu" }
+uf2 = { path = "uf2" }
+
+[lib]

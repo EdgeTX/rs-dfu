@@ -1,0 +1,12 @@
+[package]
+name = "rdfu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+clap-num = "1.2"
+dfu = { path = "../dfu" }
+uf2 = { path = "../uf2" }
+env_logger = { workspace = true }
+nusb = { workspace = true }
