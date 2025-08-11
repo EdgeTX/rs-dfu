@@ -92,14 +92,20 @@ jobs:
           mkdir release-assets
           
           # CLI tools with simplified names
-          cp artifacts/rdfu-macos-latest/rdfu release-assets/rdfu-macos
-          cp artifacts/rdfu-ubuntu-22.04/rdfu release-assets/rdfu-linux
-          cp artifacts/rdfu-windows-latest/rdfu.exe release-assets/rdfu-windows.exe
+          cp artifacts/rdfu-Linux-x86_64/rdfu release-assets/rdfu-linux-x86_64
+          cp artifacts/rdfu-Linux-arm64/rdfu release-assets/rdfu-linux-arm64
+          cp artifacts/rdfu-Windows-x86_64/rdfu.exe release-assets/rdfu-windows-x86_64.exe
+          cp artifacts/rdfu-Windows-arm64/rdfu.exe release-assets/rdfu-windows-arm64.exe
+          cp artifacts/rdfu-macOS-x86_64/rdfu release-assets/rdfu-macos-x86_64
+          cp artifacts/rdfu-macOS-arm64/rdfu release-assets/rdfu-macos-arm64
           
           # Libraries with original names (preserving the full Rust target triple)
-          find artifacts/library-macos-latest -name "*.tar.gz" -exec cp {} release-assets/ \;
-          find artifacts/library-ubuntu-22.04 -name "*.tar.gz" -exec cp {} release-assets/ \;
-          find artifacts/library-windows-latest -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-Linux-x86_64 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-Linux-arm64 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-Windows-x86_64 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-Windows-arm64 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-macOS-x86_64 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-macOS-arm64 -name "*.tar.gz" -exec cp {} release-assets/ \;
 
       - name: Release
         uses: softprops/action-gh-release@v2
