@@ -19,7 +19,6 @@ set(RS_DFU_LIB_NAME
 set(RS_DFU_LIB ${CARGO_TARGET_DIR}/debug/${RS_DFU_LIB_NAME})
 
 set(CARGO_OUTPUT
-  ${RS_DFU_BRIDGE_CPP}
   ${RS_DFU_BRIDGE_H}
   ${RS_DFU_LIB}
 )
@@ -34,7 +33,7 @@ FetchContent_MakeAvailable(fmt)
 # Add a custom command that builds the rust crate and client library
 add_custom_command(
   OUTPUT ${CARGO_OUTPUT}
-  COMMAND cargo build --manifest-path ${CARGO_MANIFEST}
+  COMMAND cargo build -p rs-dfu --manifest-path ${CARGO_MANIFEST}
   DEPENDS ${RS_DFU_SOURCE_FILE}
   USES_TERMINAL
   COMMENT "Running cargo..."

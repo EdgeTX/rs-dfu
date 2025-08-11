@@ -1,3 +1,7 @@
 /target
 .cache
 build
+package
+*.tar.gz
+*.zip
+dist

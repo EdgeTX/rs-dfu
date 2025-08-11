@@ -1,0 +1,45 @@
+on:
+  push:
+    branches: [ "main" ]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  MACOSX_DEPLOYMENT_TARGET: '11.0'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-22.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Build
+        run: cargo build --all --release
+
+      - name: Store command line tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdfu-${{ matrix.os }}
+          path: |
+            target/release/rdfu*
+            !target/release/rdfu.d
+            !target/release/rdfu.pdb
+
+      - name: Package library
+        shell: bash
+        run: ./package.sh
+
+      - name: Store library
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-${{ matrix.os }}
+          path: rs_dfu-*.tar.gz
+
