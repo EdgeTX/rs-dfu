@@ -2,9 +2,6 @@
 
 set -e
 
-# Build the project
-cargo build --all --release
-
 # Get target triple
 TARGET=${1:-$(rustc -vV | sed -n 's|host: ||p')}
 
@@ -28,28 +25,29 @@ case "$TARGET" in
 esac
 
 LIB_NAME="rs_dfu"
-TARGET_DIR="target/release"
+TARGET_DIR=${2:-"target"}
+PROFILE_DIR=${3:-"release"}
 
 # Create distribution structure
 rm -rf dist
 mkdir -p dist/cmake dist/include dist/lib
 
 # Copy libraries
-SHARED_LIB="${TARGET_DIR}/${LIB_PREFIX}${LIB_NAME}.${SHARED_EXT}"
+SHARED_LIB="${TARGET_DIR}/${PROFILE_DIR}/${LIB_PREFIX}${LIB_NAME}.${SHARED_EXT}"
 
 if [ -f "$SHARED_LIB" ]; then
     cp "$SHARED_LIB" "dist/lib/"
     echo "Copied: $SHARED_LIB"
 fi
 
-STATIC_LIB="${TARGET_DIR}/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
+STATIC_LIB="${TARGET_DIR}/${PROFILE_DIR}/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
 if [ -f "$STATIC_LIB" ]; then
     cp "$STATIC_LIB" "dist/lib/"
     echo "Copied: $STATIC_LIB"
 fi
 
 # Copy headers
-HEADER_FILE="target/cxxbridge/rs-dfu/src/lib.rs.h"
+HEADER_FILE="${TARGET_DIR}/cxxbridge/rs-dfu/src/lib.rs.h"
 if [ -f "$HEADER_FILE" ]; then
   cp "$HEADER_FILE" "dist/include/$LIB_NAME.h"
   echo "Copied: $HEADER_FILE"
