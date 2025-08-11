@@ -43,3 +43,33 @@ jobs:
           name: library-${{ matrix.os }}
           path: rs_dfu-*.tar.gz
 
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir release-assets
+          
+          # CLI tools with simplified names
+          cp artifacts/rdfu-macos-latest/rdfu release-assets/rdfu-macos
+          cp artifacts/rdfu-ubuntu-22.04/rdfu release-assets/rdfu-linux
+          cp artifacts/rdfu-windows-latest/rdfu.exe release-assets/rdfu-windows.exe
+          
+          # Libraries with original names (preserving the full Rust target triple)
+          find artifacts/library-macos-latest -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-ubuntu-22.04 -name "*.tar.gz" -exec cp {} release-assets/ \;
+          find artifacts/library-windows-latest -name "*.tar.gz" -exec cp {} release-assets/ \;
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: release-assets/*
