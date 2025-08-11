@@ -8,6 +8,7 @@ pub struct UF2RangeIterator<'a> {
     reboot_address: Option<u32>,
 }
 
+#[derive(Default)]
 pub struct UF2AddressRange {
     pub start_address: u32,
     pub payload: Vec<u8>,

@@ -1,11 +1,6 @@
-#![allow(dead_code)]
-
-use nonempty::NonEmpty;
 use nusb::{self, MaybeFuture};
 
-use crate::{
-    DfuConnection, DfuError, DfuMemSegment, descriptor::*, interface::*,
-};
+use crate::{DfuConnection, DfuError, descriptor::*, interface::*};
 
 const DFU_CLASS: u8 = 0xFE;
 const DFU_SUBCLASS: u8 = 0x1;
@@ -14,28 +9,6 @@ const DFU_SUBCLASS: u8 = 0x1;
 pub struct DfuDevice {
     dev: nusb::DeviceInfo,
     interfaces: Vec<DfuInterface>,
-}
-
-/// DFU interface and memory segments matching an address range
-///
-/// It can be obtained with [DfuDevice::find_interface_segments].
-///
-pub struct DfuInterfaceSegments {
-    interface: u8,
-    alt_setting: u8,
-    segments: NonEmpty<DfuMemSegment>,
-}
-
-impl DfuInterfaceSegments {
-    pub fn interface(&self) -> u8 {
-        self.interface
-    }
-    pub fn alt_setting(&self) -> u8 {
-        self.alt_setting
-    }
-    pub fn segments(&self) -> &NonEmpty<DfuMemSegment> {
-        &self.segments
-    }
 }
 
 impl DfuDevice {
@@ -102,6 +75,10 @@ impl DfuDevice {
         self.dev.product_id()
     }
 
+    pub fn product_string(&self) -> Option<&str> {
+        self.dev.product_string()
+    }
+
     /// DFU interfaces and alternate settings combined
     pub fn interfaces(&self) -> &Vec<DfuInterface> {
         &self.interfaces
@@ -132,32 +109,20 @@ impl DfuDevice {
         )
     }
 
-    /// Find a matching interface, alternate setting and memory segments
-    ///
-    /// This is required to connect to the correct interface and to retrieve
-    /// the list of memory segments to be erased beforehand.
-    pub fn find_interface_segments(
+    /// Find a matching interface and alternate setting
+    pub fn find_interface(
         &self,
         start_address: u32,
         end_address: u32,
-    ) -> Result<DfuInterfaceSegments, DfuError> {
+    ) -> Result<&DfuInterface, DfuError> {
         self.interfaces
             .iter()
-            .find_map(|intf| {
+            .find(|intf| {
                 let segments = intf.find_segments(start_address, end_address);
-                if segments.is_empty()
+                !segments.is_empty()
                 // verify boundaries
-                || start_address < segments.first().unwrap().start_addr()
-                || end_address > segments.last().unwrap().end_addr()
-                {
-                    None
-                } else {
-                    Some(DfuInterfaceSegments {
-                        interface: intf.interface(),
-                        alt_setting: intf.alt_setting(),
-                        segments: NonEmpty::from_vec(segments).unwrap(),
-                    })
-                }
+                && start_address >= segments.first().unwrap().start_addr()
+                && end_address <= segments.last().unwrap().end_addr()
             })
             .ok_or(DfuError::NoMemorySegments)
     }
@@ -180,20 +145,6 @@ impl DfuDevice {
         let interface = dev.claim_interface(interface).wait()?;
         interface.set_alt_setting(alt_setting).wait()?;
         Ok(DfuConnection::new(interface, xfer_size))
-    }
-
-    fn interface_segments(
-        &self,
-        interface: u8,
-    ) -> Option<NonEmpty<&DfuMemSegment>> {
-        Some(
-            self.interfaces
-                .iter()
-                .find(|intf| intf.interface() == interface)?
-                .layout()
-                .segments
-                .as_ref(),
-        )
     }
 }
 

@@ -53,31 +53,28 @@ fn download_range(
         start_address.unwrap_or(device.get_default_start_address());
     let end_address = start_address + (data.len() as u32);
 
-    let intf_segments =
-        device.find_interface_segments(start_address, end_address)?;
-    let connection = device
-        .connect(intf_segments.interface(), intf_segments.alt_setting())?;
+    let intf = device.find_interface(start_address, end_address)?;
+    let connection = device.connect(intf.interface(), intf.alt_setting())?;
 
     // erase first
-    for segment in intf_segments.segments() {
-        let (erase_start, pages) =
-            segment.get_erase_pages(start_address, end_address);
-        for page in 0..pages {
-            let page_addr = page * segment.page_size() + erase_start;
-            print!(
-                "\r  Erasing page {:2} of {:2} @ 0x{:08x}",
-                page + 1,
-                pages,
-                erase_start
-            );
-            let _ = io::stdout().flush();
-            if let Err(err) = connection.dfuse_page_erase(page_addr) {
-                println!(" ❌");
-                return Err(err);
-            }
+    let erase_pages = intf.get_erase_pages(start_address, end_address);
+    let erase_start = erase_pages.first().unwrap_or(&0u32).to_owned();
+    let pages = erase_pages.len();
+
+    for (page, page_addr) in erase_pages.into_iter().enumerate() {
+        print!(
+            "\r  Erasing page {:2} of {:2} @ 0x{:08x}",
+            page + 1,
+            pages,
+            erase_start
+        );
+        let _ = io::stdout().flush();
+        if let Err(err) = connection.dfuse_page_erase(page_addr) {
+            println!(" ❌");
+            return Err(err);
         }
-        println!(" ✅");
     }
+    println!();
 
     let mut addr = start_address;
     let mut bytes_downloaded: usize = 0;
@@ -97,7 +94,7 @@ fn download_range(
         );
         let _ = io::stdout().flush();
     }
-    println!(" ✅");
+    println!();
 
     Ok(())
 }

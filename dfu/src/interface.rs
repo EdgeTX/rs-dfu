@@ -4,6 +4,7 @@ use nusb::{self, MaybeFuture};
 
 use crate::memory::*;
 
+#[derive(Clone, Debug)]
 pub struct DfuInterface {
     config: u8,
     interface: u8,
@@ -51,6 +52,10 @@ impl DfuInterface {
     ) -> Vec<DfuMemSegment> {
         self.layout.find_segments(start_address, end_address)
     }
+
+    pub fn get_erase_pages(&self, start_addr: u32, end_addr: u32) -> Vec<u32> {
+        self.layout.get_erase_pages(start_addr, end_addr)
+    }
 }
 
 fn get_string_descriptor(
@@ -69,29 +74,4 @@ fn get_string_descriptor(
         .get_string_descriptor(desc_index, language, timeout)
         .wait()
         .ok()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_find_segments() {
-        let layout =
-            parse_memory_layout("@Internal Flash   /0x08000000/8*08Kg")
-                .unwrap();
-
-        assert!(!layout.find_segments(0x08000000, 0x08001000).is_empty());
-        assert!(!layout.find_segments(0x08000000, 0x0800e9a0).is_empty());
-        assert!(!layout.find_segments(0x08001000, 0x0800e9a0).is_empty());
-
-        let layout = parse_memory_layout(
-            "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg",
-        )
-        .unwrap();
-
-        assert_eq!(layout.find_segments(0x08000000, 0x08020000).len(), 3);
-        assert_eq!(layout.find_segments(0x08000000, 0x0800e9a0).len(), 1);
-        assert_eq!(layout.find_segments(0x08001000, 0x0800e9a0).len(), 1);
-    }
 }

@@ -3,7 +3,7 @@ use std::cmp;
 use nonempty::NonEmpty;
 use regex::Regex;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DfuMemory {
     pub name: String,
     pub segments: NonEmpty<DfuMemSegment>,
@@ -34,6 +34,21 @@ impl DfuMemory {
                 } else {
                     None
                 }
+            })
+            .collect()
+    }
+
+    pub fn get_erase_pages(&self, start_addr: u32, end_addr: u32) -> Vec<u32> {
+        self.segments
+            .iter()
+            .filter(|s| {
+                s.contains(start_addr)
+                    || s.contains(end_addr)
+                    || s.is_contained_in(start_addr, end_addr)
+            })
+            .flat_map(|s| {
+                let (start, pages) = s.get_erase_pages(start_addr, end_addr);
+                (0..pages).map(move |p| p * s.page_size() + start)
             })
             .collect()
     }
@@ -158,6 +173,47 @@ mod tests {
                     mem_type: b'g' & 7
                 }],
             })
+        );
+    }
+
+    #[test]
+    fn test_find_segments() {
+        let layout =
+            parse_memory_layout("@Internal Flash   /0x08000000/8*08Kg")
+                .unwrap();
+
+        assert!(!layout.find_segments(0x08000000, 0x08001000).is_empty());
+        assert!(!layout.find_segments(0x08000000, 0x0800e9a0).is_empty());
+        assert!(!layout.find_segments(0x08001000, 0x0800e9a0).is_empty());
+
+        let layout = parse_memory_layout(
+            "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg",
+        )
+        .unwrap();
+
+        assert_eq!(layout.find_segments(0x08000000, 0x08020000).len(), 3);
+        assert_eq!(layout.find_segments(0x08000000, 0x0800e9a0).len(), 1);
+        assert_eq!(layout.find_segments(0x08001000, 0x0800e9a0).len(), 1);
+    }
+
+    #[test]
+    fn test_erase_pages() {
+        let mem = DfuMemory {
+            name: "Internal Flash".into(),
+            segments: nonempty![DfuMemSegment {
+                start_addr: 0x08000000,
+                end_addr: 0x08000000 + 64 * 1024,
+                page_size: 8 * 1024,
+                mem_type: b'g' & 7,
+            }],
+        };
+
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x0800d9a0),
+            vec![
+                0x08000000, 0x08002000, 0x08004000, 0x08006000, 0x08008000,
+                0x0800a000, 0x0800c000
+            ],
         );
     }
 }

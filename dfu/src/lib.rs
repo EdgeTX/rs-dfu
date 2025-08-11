@@ -14,7 +14,7 @@
 //! ```
 //! use dfu::find_dfu_devices;
 //!
-//! match find_dfu_devices() {
+//! match find_dfu_devices(None, None) {
 //!     Ok(devices) => {
 //!         if devices.is_empty() {
 //!             println!("No DFU devices found");
@@ -45,6 +45,7 @@ use std::time::Duration;
 // Re-exports
 pub use connection::DfuConnection;
 pub use descriptor::{DFUSE_VERSION_NUMBER, DfuDescriptor};
-pub use device::{DfuDevice, DfuInterfaceSegments, find_dfu_devices};
+pub use device::{DfuDevice, find_dfu_devices};
 pub use error::DfuError;
+pub use interface::DfuInterface;
 pub use memory::{DfuMemSegment, DfuMemory};
