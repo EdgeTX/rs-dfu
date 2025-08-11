@@ -11,36 +11,70 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform.os-name }})
+    runs-on: ${{ matrix.platform.runs-on }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-22.04, windows-latest]
+        platform:
+          - os-name: Linux-x86_64
+            runs-on: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            command: both
+
+          - os-name: Linux-arm64
+            runs-on: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            command: both
+
+          - os-name: Windows-x86_64
+            runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
+            command: both
+
+          - os-name: Windows-arm64
+            runs-on: windows-latest
+            target: aarch64-pc-windows-msvc
+            command: build
+
+          - os-name: macOS-x86_64
+            runs-on: macos-latest
+            target: x86_64-apple-darwin
+            command: both
+
+          - os-name: macOS-arm64
+            runs-on: macos-latest
+            target: aarch64-apple-darwin
+            command: both
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run tests
-        run: cargo test
-
       - name: Build
-        run: cargo build --all --release
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          command: ${{ matrix.platform.command }}
+          target: ${{ matrix.platform.target }}
+          args: "--locked --all --release"
 
       - name: Store command line tool
         uses: actions/upload-artifact@v4
         with:
-          name: rdfu-${{ matrix.os }}
+          name: rdfu-${{ matrix.platform.os-name }}
           path: |
-            target/release/rdfu*
-            !target/release/rdfu.d
-            !target/release/rdfu.pdb
+            target/${{ matrix.platform.target }}/release/rdfu*
+            !target/${{ matrix.platform.target }}/release/rdfu.d
+            !target/${{ matrix.platform.target }}/release/rdfu.pdb
 
       - name: Package library
         shell: bash
-        run: ./package.sh
+        env:
+          TARGET: ${{ matrix.platform.target }}
+        run: ./package.sh $TARGET "target/$TARGET" "release"
 
       - name: Store library
         uses: actions/upload-artifact@v4
         with:
-          name: library-${{ matrix.os }}
+          name: library-${{ matrix.platform.os-name }}
           path: rs_dfu-*.tar.gz
 
   release:

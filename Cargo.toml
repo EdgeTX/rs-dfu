@@ -20,5 +20,8 @@ uf2 = { path = "uf2" }
 [build-dependencies]
 cxx-build = "1.0"
 
+[profile.release]
+strip = true
+
 [lib]
 crate-type = ["staticlib", "cdylib"]
