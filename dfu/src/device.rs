@@ -79,6 +79,10 @@ impl DfuDevice {
         self.dev.product_string()
     }
 
+    pub fn device_version(&self) -> String {
+        bcd_version_string(self.dev.device_version())
+    }
+
     /// DFU interfaces and alternate settings combined
     pub fn interfaces(&self) -> &Vec<DfuInterface> {
         &self.interfaces
@@ -177,4 +181,22 @@ pub fn find_dfu_devices(
         }
     }
     Ok(dfu_devices)
+}
+
+fn bcd_version_string(bcd_version: u16) -> String {
+    let major = ((bcd_version >> 12) & 0xF) * 10 + ((bcd_version >> 8) & 0xF);
+    let minor = ((bcd_version >> 4) & 0xF) * 10 + (bcd_version & 0xF);
+    format!("{}.{:02}", major, minor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bcd_string() {
+        assert_eq!(bcd_version_string(0x0200), "2.00");
+        assert_eq!(bcd_version_string(0x0211), "2.11");
+        assert_eq!(bcd_version_string(0x2200), "22.00");
+    }
 }

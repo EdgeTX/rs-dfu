@@ -39,11 +39,12 @@ fn print_segment(prefix: &str, segment: &DfuMemSegment) {
 fn print_devices(devices: &Vec<DfuDevice>) {
     for device in devices {
         println!(
-            "Bus {} Device {:03}: ID {:04x}:{:04x} (dfuse={})",
+            "Bus {} Device {:03}: ID {:04x}:{:04x} (ver={}, dfuse={})",
             device.bus_id(),
             device.device_address(),
             device.vendor_id(),
             device.product_id(),
+            device.device_version(),
             device.is_dfuse(),
         );
 
