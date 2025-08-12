@@ -107,7 +107,7 @@ target_link_libraries(your_app rs_dfu::rs_dfu)
 ### Code Example
 
 ```cpp
-#include "lib.rs.h"
+#include "rs_dfu.h"
 #include <stdio.h>
 
 using ::rust::Vec;
@@ -116,7 +116,7 @@ void print_devices(const Vec<DfuDevice> &devices)
 {
     for (const auto &device : devices) {
         auto dev_info = device.device_info();
-        printf("%04x:%04x: {} (0x%08x)\n",
+        printf("%04x:%04x: %s (0x%08x)\n",
                dev_info.vendor_id,
                dev_info.product_id,
                dev_info.product_string.c_str(),
@@ -138,7 +138,7 @@ int main() {
         print_devices(devices);
         
     } catch (const std::exception& e) {
-        printf("Error: %s\n", e.what().c_str());
+        printf("Error: %s\n", e.what());
         return 1;
     }
     
