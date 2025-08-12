@@ -34,7 +34,7 @@ raw binaries and modern UF2 firmware files.
 Download the latest release for your platform from the [releases page](https://github.com/EdgeTX/rs-dfu/releases):
 
 - **Command-line tool**: `rdfu-{os-arch}`
-- **C++ library**: `rs_dfu-{target-triple}.tar.gz` containing static/dynamic libraries and headers
+- **C++ library**: `rs_dfu-{target-triple}.tar.gz` containing static library and header
 
 ### Building from Source
 
