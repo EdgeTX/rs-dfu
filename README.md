@@ -16,13 +16,24 @@ raw binaries and modern UF2 firmware files.
   - C++ library for embedding in custom applications
 - **Cross-Platform**: Support for Windows, macOS, and Linux
 
+## Supported Platforms
+
+| Platform | Architecture          | CLI Tool | Library |
+|----------|-----------------------|----------|---------|
+| Windows  | x86_64                |    ✅    |   ✅    |
+| Windows  | ARM64                 |    ✅    |   ✅    |
+| macOS    | x86_64 (Intel)        |    ✅    |   ✅    |
+| macOS    | ARM64 (Apple Silicon) |    ✅    |   ✅    |
+| Linux    | x86_64                |    ✅    |   ✅    |
+| Linux    | ARM64                 |    ✅    |   ✅    |
+
 ## Installation
 
 ### Pre-built Releases
 
 Download the latest release for your platform from the [releases page](https://github.com/EdgeTX/rs-dfu/releases):
 
-- **Command-line tool**: `rdfu-windows.exe`, `rdfu-macos`, `rdfu-linux`
+- **Command-line tool**: `rdfu-{os-arch}`
 - **C++ library**: `rs_dfu-{target-triple}.tar.gz` containing static/dynamic libraries and headers
 
 ### Building from Source
@@ -173,14 +184,6 @@ This creates a distribution archive containing:
 ```bash
 cargo test
 ```
-
-## Supported Platforms
-
-| Platform | Architecture | CLI Tool | Library |
-|----------|-------------|----------|---------|
-| Windows | x86_64 | ✅ | ✅ |
-| macOS | ARM64 (Apple Silicon) | ✅ | ✅ |
-| Linux | x86_64 | ✅ | ✅ |
 
 ## License
 
