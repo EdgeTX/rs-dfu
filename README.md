@@ -104,17 +104,6 @@ find_package(rs_dfu REQUIRED)
 target_link_libraries(your_app rs_dfu::rs_dfu)
 ```
 
-Or specify library type explicitly:
-```cmake
-# Use shared library
-find_package(rs_dfu REQUIRED COMPONENTS shared)
-target_link_libraries(your_app rs_dfu::shared)
-
-# Use static library
-find_package(rs_dfu REQUIRED COMPONENTS static)
-target_link_libraries(your_app rs_dfu::static)
-```
-
 ### Code Example
 
 ```cpp
