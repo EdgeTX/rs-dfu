@@ -24,4 +24,4 @@ cxx-build = "1.0"
 strip = true
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["staticlib"]

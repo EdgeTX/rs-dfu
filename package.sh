@@ -8,17 +8,14 @@ TARGET=${1:-$(rustc -vV | sed -n 's|host: ||p')}
 # Determine naming convention
 case "$TARGET" in
     *windows*)
-        SHARED_EXT="dll"
         STATIC_EXT="lib"
         LIB_PREFIX=""
         ;;
     *apple*)
-        SHARED_EXT="dylib"
         STATIC_EXT="a"
         LIB_PREFIX="lib"
         ;;
     *)
-        SHARED_EXT="so"
         STATIC_EXT="a"
         LIB_PREFIX="lib"
         ;;
@@ -33,13 +30,6 @@ rm -rf dist
 mkdir -p dist/cmake dist/include dist/lib
 
 # Copy libraries
-SHARED_LIB="${TARGET_DIR}/${PROFILE_DIR}/${LIB_PREFIX}${LIB_NAME}.${SHARED_EXT}"
-
-if [ -f "$SHARED_LIB" ]; then
-    cp "$SHARED_LIB" "dist/lib/"
-    echo "Copied: $SHARED_LIB"
-fi
-
 STATIC_LIB="${TARGET_DIR}/${PROFILE_DIR}/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
 if [ -f "$STATIC_LIB" ]; then
     cp "$STATIC_LIB" "dist/lib/"
