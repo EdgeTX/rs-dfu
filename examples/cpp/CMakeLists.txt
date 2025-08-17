@@ -51,10 +51,14 @@ target_link_libraries(cpp-example fmt::fmt)
 target_link_libraries(cpp-example ${RS_DFU_LIB})
 
 if(APPLE)
-  target_link_libraries(cpp-example
+  target_link_libraries(cpp-example PRIVATE
     "-framework IOKit"
     "-framework CoreFoundation"
     "-framework CoreServices"
+  )
+elseif(WIN32)
+  target_link_libraries(cpp-example PRIVATE
+    ws2_32 userenv winusb ntdll cfgmgr32
   )
 endif()
 
