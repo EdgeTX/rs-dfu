@@ -36,6 +36,11 @@ mod ffi {
         fn interfaces(&self) -> Vec<DfuInterface>;
         fn reset_state(&self) -> Result<()>;
         fn default_start_address(&self) -> u32;
+        fn start_upload(
+            &self,
+            start_address: u32,
+            length: u32,
+        ) -> Result<Box<DfuUpload>>;
         fn start_download(
             &self,
             start_address: u32,
@@ -58,6 +63,14 @@ mod ffi {
         fn interface(&self) -> u8;
         fn alt_setting(&self) -> u8;
         fn segments(&self) -> Vec<MemorySegment>;
+    }
+
+    extern "Rust" {
+        type DfuUpload;
+
+        fn get_length(&self) -> u32;
+        fn get_transfer_size(&self) -> u16;
+        fn upload(&mut self, length: u16) -> Result<Vec<u8>>;
     }
 
     extern "Rust" {
@@ -106,6 +119,12 @@ pub struct DfuDevice {
 
 pub struct DfuInterface {
     inner: dfu::DfuInterface,
+}
+
+pub struct DfuUpload {
+    connection: dfu::DfuConnection,
+    length: u32,
+    block_nr: u16,
 }
 
 pub struct DfuDownload {
@@ -162,12 +181,43 @@ impl DfuDevice {
         self.inner.get_default_start_address()
     }
 
+    fn start_upload(
+        &self,
+        start_address: u32,
+        length: u32,
+    ) -> Result<Box<DfuUpload>, dfu::DfuError> {
+        let end_address = if length > 0 {
+            Some(start_address + length - 1)
+        } else {
+            None
+        };
+        let intf = self.inner.find_interface(start_address, end_address)?;
+        let segments = intf.find_segments(start_address, end_address);
+        if segments.is_empty() {
+            return Err(dfu::DfuError::NoMemorySegments);
+        }
+
+        let end_address =
+            end_address.unwrap_or(segments.last().unwrap().end_addr() - 1);
+        let length = end_address - start_address + 1;
+        let connection =
+            self.inner.connect(intf.interface(), intf.alt_setting())?;
+
+        Ok(Box::new(DfuUpload {
+            connection,
+            length,
+            block_nr: 0,
+        }))
+    }
+
     fn start_download(
         &self,
         start_address: u32,
         end_address: u32,
     ) -> Result<Box<DfuDownload>, dfu::DfuError> {
-        let intf = self.inner.find_interface(start_address, end_address)?;
+        let intf = self
+            .inner
+            .find_interface(start_address, Some(end_address))?;
         let erase_pages = intf.get_erase_pages(start_address, end_address);
         let connection =
             self.inner.connect(intf.interface(), intf.alt_setting())?;
@@ -233,6 +283,22 @@ impl DfuInterface {
     }
 }
 
+impl DfuUpload {
+    fn get_transfer_size(&self) -> u16 {
+        self.connection.transfer_size()
+    }
+
+    fn get_length(&self) -> u32 {
+        self.length
+    }
+
+    fn upload(&mut self, length: u16) -> Result<Vec<u8>, dfu::DfuError> {
+        let data = self.connection.upload(self.block_nr, length)?;
+        self.block_nr += 1;
+        Ok(data)
+    }
+}
+
 impl DfuDownload {
     fn get_erase_pages(&self) -> Vec<u32> {
         self.erase_pages.clone()
@@ -246,11 +312,7 @@ impl DfuDownload {
         self.connection.dfuse_page_erase(addr)
     }
 
-    fn download(
-        self: &DfuDownload,
-        addr: u32,
-        data: &[u8],
-    ) -> Result<(), dfu::DfuError> {
+    fn download(&self, addr: u32, data: &[u8]) -> Result<(), dfu::DfuError> {
         self.connection.download(addr, data)
     }
 }

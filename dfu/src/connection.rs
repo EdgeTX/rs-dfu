@@ -40,9 +40,9 @@ pub struct DfuConnection {
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct DfuStatus {
-    status: u8,
-    poll_timeout: u32,
-    state: u8,
+    pub status: u8,
+    pub poll_timeout: u32,
+    pub state: u8,
 }
 
 impl DfuStatus {

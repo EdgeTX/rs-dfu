@@ -48,7 +48,7 @@ impl DfuInterface {
     pub fn find_segments(
         &self,
         start_address: u32,
-        end_address: u32,
+        end_address: Option<u32>,
     ) -> Vec<DfuMemSegment> {
         self.layout.find_segments(start_address, end_address)
     }

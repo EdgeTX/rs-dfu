@@ -23,7 +23,13 @@ esac
 
 LIB_NAME="rs_dfu"
 TARGET_DIR=${2:-"target"}
-PROFILE_DIR=${3:-"release"}
+
+if [ -d "${TARGET_DIR}/release" ]; then
+    PROFILE_DIR=${3:-"release"}
+elif [ -d "${TARGET_DIR}/debug" ]; then
+    PROFILE_DIR=${3:-"debug"}
+    TARGET="${TARGET}-debug"
+fi
 
 # Create distribution structure
 rm -rf dist

@@ -117,7 +117,7 @@ impl DfuDevice {
     pub fn find_interface(
         &self,
         start_address: u32,
-        end_address: u32,
+        end_address: Option<u32>,
     ) -> Result<&DfuInterface, DfuError> {
         self.interfaces
             .iter()
@@ -126,7 +126,7 @@ impl DfuDevice {
                 !segments.is_empty()
                 // verify boundaries
                 && start_address >= segments.first().unwrap().start_addr()
-                && end_address <= segments.last().unwrap().end_addr()
+                && end_address.is_none_or(|addr| addr <= segments.last().unwrap().end_addr())
             })
             .ok_or(DfuError::NoMemorySegments)
     }
