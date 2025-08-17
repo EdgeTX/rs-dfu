@@ -7,10 +7,15 @@ if(WIN32)
     set(_rs_dfu_lib_prefix "")
     set(_rs_dfu_shared_ext "dll")
     set(_rs_dfu_static_ext "lib")
+    set(_rs_dfu_system_libs ws2_32 userenv winusb ntdll cfgmgr32)
 elseif(APPLE)
     set(_rs_dfu_lib_prefix "lib")
     set(_rs_dfu_shared_ext "dylib")
     set(_rs_dfu_static_ext "a")
+    set(_rs_dfu_system_libs
+        "-framework IOKit"
+        "-framework CoreFoundation"
+        "-framework CoreServices")
 else()
     set(_rs_dfu_lib_prefix "lib")
     set(_rs_dfu_shared_ext "so")
@@ -29,6 +34,7 @@ if(EXISTS "${_rs_dfu_static_lib}" AND NOT TARGET rs_dfu::static)
     set_target_properties(rs_dfu::static PROPERTIES
         IMPORTED_LOCATION "${_rs_dfu_static_lib}"
         INTERFACE_INCLUDE_DIRECTORIES "${RS_DFU_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "${_rs_dfu_system_libs}"
     )
 endif()
 
