@@ -12,7 +12,7 @@
 
 using namespace std::chrono_literals;
 
-using ::rust::Slice;
+using SliceU8 = rust::Slice<const uint8_t>;
 using ::rust::Vec;
 
 void print_devices(const Vec<DfuDevice> &devices) {
@@ -45,10 +45,9 @@ void update_download_status(size_t bytes, size_t total) {
   fflush(stdout);
 }
 
-int write_region(const DfuDevice &device, uint32_t addr,
-                 const Slice<const uint8_t> &data) {
+int write_region(const DfuDevice &device, uint32_t addr, const SliceU8 &data) {
   auto start_address = addr;
-  auto end_address = start_address + data.size();
+  auto end_address = start_address + data.size() - 1;
 
   auto ctx = device.start_download(start_address, end_address);
   auto erase_pages = ctx->get_erase_pages();
@@ -68,7 +67,7 @@ int write_region(const DfuDevice &device, uint32_t addr,
         std::min(uint32_t(xfer_size), uint32_t(data.size() - bytes_downloaded));
     bytes_downloaded += single_xfer_size;
     update_download_status(bytes_downloaded, data.size());
-    ctx->download(addr, Slice<const uint8_t>(data_ptr, single_xfer_size));
+    ctx->download(addr, SliceU8(data_ptr, single_xfer_size));
     addr += single_xfer_size;
     data_ptr += single_xfer_size;
   }
@@ -78,8 +77,8 @@ int write_region(const DfuDevice &device, uint32_t addr,
 
 template <typename Duration>
 void reboot_and_rediscover(DfuDevice &device, uint32_t addr,
-                           const Slice<const uint8_t> &data,
-                           uint32_t reboot_addr, Duration timeout) {
+                           const SliceU8 &data, uint32_t reboot_addr,
+                           Duration timeout) {
   fmt::println("Rebooting into DFU...");
   device.reboot(addr, data, reboot_addr);
   auto start = std::chrono::steady_clock::now();
@@ -117,7 +116,7 @@ int main(int argc, char *argv[]) {
     auto &device = devices[0];
     device.reset_state();
 
-    Slice<const uint8_t> buffer_slice(buffer.data(), buffer.size());
+    SliceU8 buffer_slice(buffer.data(), buffer.size());
     if (!is_uf2_payload(buffer_slice)) {
       auto addr = device.default_start_address();
       return write_region(device, addr, buffer_slice);

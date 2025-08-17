@@ -38,7 +38,7 @@ pub(crate) fn download(
     Ok(leave(&device)?)
 }
 
-fn reset_state(device: &DfuDevice) -> Result<(), DfuError> {
+pub(crate) fn reset_state(device: &DfuDevice) -> Result<(), DfuError> {
     println!("Resetting device state...");
     let connection = device.connect(0, 0)?;
     connection.reset_state()
@@ -51,9 +51,9 @@ fn download_range(
 ) -> Result<(), DfuError> {
     let start_address =
         start_address.unwrap_or(device.get_default_start_address());
-    let end_address = start_address + (data.len() as u32);
+    let end_address = start_address + (data.len() as u32) - 1;
 
-    let intf = device.find_interface(start_address, end_address)?;
+    let intf = device.find_interface(start_address, Some(end_address))?;
     let connection = device.connect(intf.interface(), intf.alt_setting())?;
 
     // erase first

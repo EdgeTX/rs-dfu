@@ -21,20 +21,22 @@ impl DfuMemory {
     pub fn find_segments(
         &self,
         start_address: u32,
-        end_address: u32,
+        end_address: Option<u32>,
     ) -> Vec<DfuMemSegment> {
         self.segments
             .iter()
-            .filter_map(|s| {
-                if s.contains(start_address)
-                    || s.contains(end_address)
-                    || s.is_contained_in(start_address, end_address)
-                {
-                    Some(s.clone())
-                } else {
-                    None
-                }
+            .filter(|s| {
+                end_address.map_or(
+                    s.contains(start_address)
+                        || start_address <= s.start_addr(),
+                    |end| {
+                        s.contains(start_address)
+                            || s.contains(end)
+                            || s.is_contained_in(start_address, end)
+                    },
+                )
             })
+            .cloned()
             .collect()
     }
 
@@ -68,10 +70,10 @@ impl DfuMemSegment {
         (self.end_addr - self.start_addr) / self.page_size
     }
     pub fn is_contained_in(&self, start_addr: u32, end_addr: u32) -> bool {
-        start_addr <= self.start_addr && self.end_addr <= end_addr
+        start_addr <= self.start_addr && self.end_addr < end_addr
     }
     pub fn contains(&self, addr: u32) -> bool {
-        addr >= self.start_addr && addr <= self.end_addr
+        addr >= self.start_addr && addr < self.end_addr
     }
     pub fn get_erase_pages(
         &self,
@@ -82,7 +84,7 @@ impl DfuMemSegment {
         let erase_end = cmp::min(end_addr, self.end_addr);
         (
             erase_start,
-            (erase_end - erase_start).div_ceil(self.page_size()),
+            (erase_end + 1 - erase_start).div_ceil(self.page_size()),
         )
     }
     pub fn readable(&self) -> bool {
@@ -182,18 +184,52 @@ mod tests {
             parse_memory_layout("@Internal Flash   /0x08000000/8*08Kg")
                 .unwrap();
 
-        assert!(!layout.find_segments(0x08000000, 0x08001000).is_empty());
-        assert!(!layout.find_segments(0x08000000, 0x0800e9a0).is_empty());
-        assert!(!layout.find_segments(0x08001000, 0x0800e9a0).is_empty());
+        assert!(
+            !layout
+                .find_segments(0x08000000, Some(0x08001000))
+                .is_empty()
+        );
+        assert!(
+            !layout
+                .find_segments(0x08000000, Some(0x0800e9a0))
+                .is_empty()
+        );
+        assert!(
+            !layout
+                .find_segments(0x08001000, Some(0x0800e9a0))
+                .is_empty()
+        );
 
         let layout = parse_memory_layout(
             "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg",
         )
         .unwrap();
 
-        assert_eq!(layout.find_segments(0x08000000, 0x08020000).len(), 3);
-        assert_eq!(layout.find_segments(0x08000000, 0x0800e9a0).len(), 1);
-        assert_eq!(layout.find_segments(0x08001000, 0x0800e9a0).len(), 1);
+        assert_eq!(layout.find_segments(0x08000000, Some(0x0801ffff)).len(), 2);
+        assert_eq!(layout.find_segments(0x08000000, Some(0x0800e9a0)).len(), 1);
+        assert_eq!(layout.find_segments(0x08001000, Some(0x0800e9a0)).len(), 1);
+    }
+
+    #[test]
+    fn test_find_segments_without_end_address() {
+        let layout =
+            parse_memory_layout("@Internal Flash   /0x08000000/8*08Kg")
+                .unwrap();
+
+        assert!(!layout.find_segments(0x08000000, None).is_empty());
+        assert!(!layout.find_segments(0x08000000, None).is_empty());
+        assert!(!layout.find_segments(0x08001000, None).is_empty());
+
+        assert!(layout.find_segments(0x08010000, None).is_empty());
+
+        let layout = parse_memory_layout(
+            "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg",
+        )
+        .unwrap();
+
+        assert_eq!(layout.find_segments(0x08000000, None).len(), 3);
+        assert_eq!(layout.find_segments(0x08010000, None).len(), 2);
+        assert_eq!(layout.find_segments(0x08020000, None).len(), 1);
     }
 
     #[test]
@@ -214,6 +250,16 @@ mod tests {
                 0x08000000, 0x08002000, 0x08004000, 0x08006000, 0x08008000,
                 0x0800a000, 0x0800c000
             ],
+        );
+
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x08001fff),
+            vec![0x08000000],
+        );
+
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x08002000),
+            vec![0x08000000, 0x08002000],
         );
     }
 }

@@ -59,6 +59,11 @@ rdfu write firmware.uf2
 rdfu write firmware.bin
 ```
 
+Read firmware from device:
+```bash
+rdfu read firmware.bin
+```
+
 ### Device Selection
 
 Filter devices by vendor/product ID:
@@ -75,6 +80,11 @@ rdfu write --vendor 0483 --product df11 firmware.bin
 Write raw binary to custom address:
 ```bash
 rdfu write --start-address 0x08000000 firmware.bin
+```
+
+Read raw binary from custom address with custom length:
+```bash
+rdfu read --start-address 0x08001000 --length 51640 firmware.bin
 ```
 
 Reboot EdgeTX radio into DFU bootloader:
