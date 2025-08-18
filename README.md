@@ -184,6 +184,22 @@ This creates a distribution archive containing:
 cargo test
 ```
 
+## Troubleshooting
+
+### Device is not listed or does not reconnect
+
+**On Windows**, if your DFU device is not listed or cannot be connected, it is most
+certainly because DFU devices on Windows always need a driver.
+
+You can either:
+- use the vendor's driver (if existing),
+- use the generic WinUSB driver (see [here](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation#installing-winusb-by-specifying-the-system-provided-device-class))
+- or use [Zadig](https://github.com/pbatard/libwdi/releases)
+
+**On macOS**, you might experience the annoying user confirmation dialog when connecting
+a device the first, or maybe even every time. This behaviour can be configured in *System Settings*
+(see [here](https://support.apple.com/en-gb/102282)).
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE) - see the LICENSE file for details.
