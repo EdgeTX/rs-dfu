@@ -24,8 +24,8 @@ const DFUSE_CMD_ERASE: u8 = 0x41;
 // const DFU_STATE_APP_DETACH: u8 = 0x01;
 const DFU_STATE_DFU_IDLE: u8 = 0x02;
 // const DFU_STATE_DFU_DOWNLOAD_SYNC: u8 = 0x03;
-// const DFU_STATE_DFU_DOWNLOAD_BUSY: u8 = 0x04;
-const DFU_STATE_DFU_DOWNLOAD_IDLE: u8 = 0x05;
+const DFU_STATE_DFU_DOWNLOAD_BUSY: u8 = 0x04;
+// const DFU_STATE_DFU_DOWNLOAD_IDLE: u8 = 0x05;
 // const DFU_STATE_DFU_MANIFEST_SYNC: u8 = 0x06;
 // const DFU_STATE_DFU_MANIFEST: u8 = 0x07;
 // const DFU_STATE_DFU_MANIFEST_WAIT_RESET: u8 = 0x08;
@@ -195,12 +195,26 @@ impl DfuConnection {
     fn poll_until_idle(&self) -> Result<(), DfuError> {
         let start = Instant::now();
         loop {
-            let st = self.get_status()?;
-            if st.state == DFU_STATE_DFU_DOWNLOAD_IDLE {
-                return st.ok();
-            }
-            if start.elapsed() >= DEFAULT_TIMEOUT * 2 {
-                return Err(DfuError::Timeout);
+            match self.get_status() {
+                Ok(st) => {
+                    if st.state != DFU_STATE_DFU_DOWNLOAD_BUSY {
+                        return st.ok();
+                    }
+                    if start.elapsed() >= DEFAULT_TIMEOUT * 20 {
+                        return Err(DfuError::Timeout);
+                    }
+                }
+                Err(DfuError::Transfer(
+                    nusb::transfer::TransferError::Cancelled,
+                ))
+                | Err(DfuError::Transfer(
+                    nusb::transfer::TransferError::Stall,
+                )) => {
+                    continue;
+                }
+                Err(err) => {
+                    return Err(err);
+                }
             }
         }
     }
