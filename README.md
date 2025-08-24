@@ -36,6 +36,13 @@ Download the latest release for your platform from the [releases page](https://g
 - **Command-line tool**: `rdfu-{os-arch}`
 - **C++ library**: `rs_dfu-{target-triple}.tar.gz` containing static library and header
 
+**Please note:**
+
+On macOS, you will probably need to "unflag" the binary before use:
+```shell
+xattr -c rdfu-macos-arm64
+```
+
 ### Building from Source
 
 ```bash
