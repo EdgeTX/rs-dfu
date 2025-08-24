@@ -40,7 +40,9 @@ pub struct UF2Extension {
     pub payload: Vec<u8>,
 }
 
-pub struct UF2DecodeError;
+pub struct UF2DecodeError {
+    pub err: String,
+}
 
 impl UF2Flags {
     pub const NOT_MAIN_FLASH: u32 = 0x00000001;
@@ -73,14 +75,18 @@ impl UF2Flags {
 impl UF2BlockData {
     pub fn decode(data: &[u8]) -> Result<UF2BlockData, UF2DecodeError> {
         if !is_uf2_block(data) {
-            return Err(UF2DecodeError);
+            return Err(UF2DecodeError::new(
+                "magic values check failed".to_string(),
+            ));
         }
 
         let flags = extract_u32(data, 8);
         let payload_size = extract_u32(data, 16) as usize;
 
         if payload_size > UF2_MAX_PAYLOAD_SIZE {
-            return Err(UF2DecodeError);
+            return Err(UF2DecodeError::new(
+                format!("payload size too big ({payload_size})").to_string(),
+            ));
         }
 
         let payload = &data[UF2_HEADER_SIZE..(UF2_HEADER_SIZE + payload_size)];
@@ -154,9 +160,15 @@ impl UF2BlockData {
     }
 }
 
+impl UF2DecodeError {
+    pub fn new(err: String) -> Self {
+        UF2DecodeError { err }
+    }
+}
+
 impl std::fmt::Display for UF2DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UF2 decode error")
+        write!(f, "UF2 decode error: {}", self.err)
     }
 }
 

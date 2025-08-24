@@ -198,7 +198,9 @@ fn reboot_cmd(
 fn show_uf2(file: &PathBuf) -> Result<(), CliError> {
     let data = fs::read(file)?;
     if !is_uf2_block(&data) {
-        return Err(CliError::UF2(UF2DecodeError));
+        return Err(CliError::UF2(UF2DecodeError::new(
+            "invalid first block".to_string(),
+        )));
     }
     let block = UF2BlockData::decode(&data[0..UF2_BLOCK_SIZE])?;
     println!(
