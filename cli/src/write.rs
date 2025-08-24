@@ -58,7 +58,6 @@ fn download_range(
 
     // erase first
     let erase_pages = intf.get_erase_pages(start_address, end_address);
-    let erase_start = erase_pages.first().unwrap_or(&0u32).to_owned();
     let pages = erase_pages.len();
 
     for (page, page_addr) in erase_pages.into_iter().enumerate() {
@@ -66,7 +65,7 @@ fn download_range(
             "\r  Erasing page {:2} of {:2} @ 0x{:08x}",
             page + 1,
             pages,
-            erase_start
+            page_addr,
         );
         let _ = io::stdout().flush();
         if let Err(err) = connection.dfuse_page_erase(page_addr) {
