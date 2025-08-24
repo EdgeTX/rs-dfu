@@ -30,7 +30,7 @@
 //! [`nusb`]: https://docs.rs/nusb
 //! [EdgeTX]: https://github.com/EdgeTX/edgetx
 
-pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_millis(500u64);
+pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_millis(5000u64);
 pub(crate) const DEFAULT_TRANSFER_SIZE: u16 = 1024 * 2;
 
 mod connection;

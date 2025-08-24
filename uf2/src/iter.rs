@@ -17,19 +17,25 @@ pub struct UF2AddressRange {
 
 impl<'a> UF2RangeIterator<'a> {
     pub fn new(data: &'a [u8]) -> Result<Self, UF2DecodeError> {
-        if !data.chunks(UF2_BLOCK_SIZE).all(is_uf2_block) {
-            Err(UF2DecodeError)
-        } else {
-            let mut block_iter = data.chunks(UF2_BLOCK_SIZE);
-            let block = UF2BlockData::decode(block_iter.next().unwrap())?;
-            Ok(UF2RangeIterator {
-                block_iter: Some(block_iter),
-                start_address: block.flash_address,
-                end_address: block.flash_address + (block.payload.len() as u32),
-                payload: block.payload.clone(),
-                reboot_address: block.get_reboot_address(),
-            })
+        for (i, chunk) in data.chunks(UF2_BLOCK_SIZE).enumerate() {
+            if !is_uf2_block(chunk) {
+                let offset = i * UF2_BLOCK_SIZE;
+                return Err(UF2DecodeError::new(format!(
+                    "invalid UF2 block at {:#x}",
+                    offset
+                )));
+            }
         }
+
+        let mut block_iter = data.chunks(UF2_BLOCK_SIZE);
+        let block = UF2BlockData::decode(block_iter.next().unwrap())?;
+        Ok(UF2RangeIterator {
+            block_iter: Some(block_iter),
+            start_address: block.flash_address,
+            end_address: block.flash_address + (block.payload.len() as u32),
+            payload: block.payload.clone(),
+            reboot_address: block.get_reboot_address(),
+        })
     }
 
     fn make_range(&mut self) -> UF2AddressRange {
