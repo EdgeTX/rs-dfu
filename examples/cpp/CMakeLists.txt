@@ -47,8 +47,8 @@ target_include_directories(cpp-example PRIVATE
   ${CARGO_CXX_TARGET_DIR}/src
 )
 
-target_link_libraries(cpp-example fmt::fmt)
-target_link_libraries(cpp-example ${RS_DFU_LIB})
+target_link_libraries(cpp-example PRIVATE fmt::fmt)
+target_link_libraries(cpp-example PRIVATE ${RS_DFU_LIB})
 
 if(APPLE)
   target_link_libraries(cpp-example PRIVATE

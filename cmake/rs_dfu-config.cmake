@@ -7,6 +7,7 @@ if(WIN32)
     set(_rs_dfu_lib_prefix "")
     set(_rs_dfu_shared_ext "dll")
     set(_rs_dfu_static_ext "lib")
+    set(_rs_dfu_debug_suffix "d")
     set(_rs_dfu_system_libs ws2_32 userenv winusb ntdll cfgmgr32)
 elseif(APPLE)
     set(_rs_dfu_lib_prefix "lib")
@@ -26,7 +27,13 @@ set(RS_DFU_DIR "${CMAKE_CURRENT_LIST_DIR}/..")
 set(RS_DFU_INCLUDE_DIR "${RS_DFU_DIR}/include")
 set(RS_DFU_LIB_DIR "${RS_DFU_DIR}/lib")
 
-set(_rs_dfu_static_lib "${RS_DFU_LIB_DIR}/${_rs_dfu_lib_prefix}rs_dfu.${_rs_dfu_static_ext}")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(_rs_dfu_libname "${_rs_dfu_lib_prefix}rs_dfu")
+else()
+    set(_rs_dfu_libname "${_rs_dfu_lib_prefix}rs_dfu${_rs_dfu_debug_suffix}")
+endif()
+
+set(_rs_dfu_static_lib "${RS_DFU_LIB_DIR}/${_rs_dfu_libname}.${_rs_dfu_static_ext}")
 
 # Create imported target
 if(EXISTS "${_rs_dfu_static_lib}" AND NOT TARGET rs_dfu::static)

@@ -24,22 +24,21 @@ esac
 LIB_NAME="rs_dfu"
 TARGET_DIR=${2:-"target"}
 
-if [ -d "${TARGET_DIR}/release" ]; then
-    PROFILE_DIR=${3:-"release"}
-elif [ -d "${TARGET_DIR}/debug" ]; then
-    PROFILE_DIR=${3:-"debug"}
-    TARGET="${TARGET}-debug"
-fi
-
 # Create distribution structure
 rm -rf dist
 mkdir -p dist/cmake dist/include dist/lib
 
 # Copy libraries
-STATIC_LIB="${TARGET_DIR}/${PROFILE_DIR}/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
-if [ -f "$STATIC_LIB" ]; then
-    cp "$STATIC_LIB" "dist/lib/"
-    echo "Copied: $STATIC_LIB"
+RELEASE_LIB="${TARGET_DIR}/release/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
+if [ -f "$RELEASE_LIB" ]; then
+    cp "$RELEASE_LIB" "dist/lib/"
+    echo "Copied: $RELEASE_LIB"
+fi
+
+DEBUG_LIB="${TARGET_DIR}/debug/${LIB_PREFIX}${LIB_NAME}.${STATIC_EXT}"
+if [ -f "$DEBUG_LIB" ]; then
+    cp "$DEBUG_LIB" "dist/lib/${LIB_PREFIX}${LIB_NAME}d.${STATIC_EXT}"
+    echo "Copied: $DEBUG_LIB -> ${LIB_PREFIX}${LIB_NAME}d.${STATIC_EXT}"
 fi
 
 # Copy headers

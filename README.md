@@ -185,6 +185,15 @@ This creates a distribution archive containing:
 - C++ header files
 - CMake configuration files
 
+On Windows, if a debug build is necessary, the library can be built with:
+```bash
+# Build Rust library
+cargo build --all
+
+# Generate distribution package
+./package.sh
+```
+
 ### Running Tests
 
 ```bash

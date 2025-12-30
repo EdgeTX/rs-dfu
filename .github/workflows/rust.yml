@@ -49,12 +49,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
+      - name: Release Build
         uses: houseabsolute/actions-rust-cross@v1
         with:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
           args: "--locked --all --release"
+
+      - name: Debug Build
+        uses: houseabsolute/actions-rust-cross@v1
+        if: startsWith(matrix.platform.os-name, 'Windows')
+        with:
+          command: ${{ matrix.platform.command }}
+          target: ${{ matrix.platform.target }}
+          args: "--config .cargo/windbg-config.toml --locked --all"
 
       - name: Store command line tool
         uses: actions/upload-artifact@v4
