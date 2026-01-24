@@ -23,7 +23,7 @@ void print_devices(const Vec<DfuDevice> &devices) {
                device.default_start_address());
 
     for (const auto &interface : device.interfaces()) {
-      fmt::print("  {}:{}: {}\n", interface.interface(),
+      fmt::print("  {}:{}: {}\n", interface.interface_nr(),
                  interface.alt_setting(), interface.name().c_str());
       for (const auto &segment : interface.segments()) {
         fmt::print("    {:#010x} -> {:#010x}\n", segment.start_addr,

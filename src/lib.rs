@@ -60,7 +60,7 @@ mod ffi {
         type DfuInterface;
 
         fn name(&self) -> String;
-        fn interface(&self) -> u8;
+        fn interface_nr(&self) -> u8;
         fn alt_setting(&self) -> u8;
         fn segments(&self) -> Vec<MemorySegment>;
     }
@@ -265,7 +265,7 @@ impl DfuInterface {
         self.inner.layout().name.clone()
     }
 
-    fn interface(&self) -> u8 {
+    fn interface_nr(&self) -> u8 {
         self.inner.interface()
     }
 
