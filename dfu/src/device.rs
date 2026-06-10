@@ -176,8 +176,28 @@ pub fn find_dfu_devices(
         .collect();
     let mut dfu_devices = Vec::with_capacity(devices.len());
     for device in devices {
-        if let Some(dfu_device) = DfuDevice::from_device_info(device)? {
-            dfu_devices.push(dfu_device);
+        match DfuDevice::from_device_info(device.clone()) {
+            Ok(Some(dfu_device)) => dfu_devices.push(dfu_device),
+            Ok(None) => {
+                log::debug!(
+                    "No DFU interface found for {vid:04X}:{pid:04X}{serial}",
+                    vid = device.vendor_id(),
+                    pid = device.product_id(),
+                    serial = device
+                        .serial_number()
+                        .map(|s| format!(" (S/N: {s})"))
+                        .unwrap_or_default()
+                )
+            }
+            Err(e) => log::warn!(
+                "Unable to query {vid:04X}:{pid:04X}{serial} for DFU interfaces ({e})",
+                vid = device.vendor_id(),
+                pid = device.product_id(),
+                serial = device
+                    .serial_number()
+                    .map(|s| format!(" (S/N: {s})"))
+                    .unwrap_or_default()
+            ),
         }
     }
     Ok(dfu_devices)
