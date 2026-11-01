@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use nusb::{self, MaybeFuture};
 
 use crate::{DfuConnection, DfuError, descriptor::*, interface::*};
@@ -5,6 +7,9 @@ use crate::{DfuConnection, DfuError, descriptor::*, interface::*};
 const DFU_CLASS: u8 = 0xFE;
 const DFU_SUBCLASS: u8 = 0x1;
 const DFU_PROTOCOL_RUNTIME: u8 = 0x1;
+
+const RECONNECT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const DISCONNECT_GRACE: Duration = Duration::from_secs(2);
 
 /// Whether an interface can be used to talk to a device in DFU mode.
 ///
@@ -169,6 +174,129 @@ impl DfuDevice {
         interface.set_alt_setting(alt_setting).wait()?;
         Ok(DfuConnection::new(interface, xfer_size))
     }
+
+    /// Wait for this device to come back after a reboot
+    ///
+    /// Returns the last error met while opening the device if it is not usable
+    /// before `timeout` elapses, or [DfuError::Timeout] if it never came back.
+    pub fn wait_for_reconnect(
+        &self,
+        timeout: Duration,
+    ) -> Result<DfuDevice, DfuError> {
+        let mut reconnect = DfuReconnect::new(self);
+        while reconnect.started.elapsed() < timeout {
+            if let Some(device) = reconnect.poll()? {
+                return Ok(device);
+            }
+        }
+        Err(reconnect.last_error.unwrap_or(DfuError::Timeout))
+    }
+}
+
+/// Physical port a device is attached to, which remains the same when the
+/// device re-enumerates, unlike its bus address.
+struct DevicePort {
+    vendor_id: u16,
+    product_id: u16,
+    bus_id: String,
+    port_chain: Vec<u8>,
+}
+
+impl DevicePort {
+    fn matches(
+        &self,
+        vendor_id: u16,
+        product_id: u16,
+        bus_id: &str,
+        port_chain: &[u8],
+    ) -> bool {
+        self.vendor_id == vendor_id
+            && self.product_id == product_id
+            && self.bus_id == bus_id
+            && self.port_chain == port_chain
+    }
+}
+
+/// Whether a device found on the expected port can be opened. The device we
+/// rebooted may still be listed for a moment, so it is only accepted if it
+/// has been seen leaving, or has not left after [DISCONNECT_GRACE] (the gap
+/// can be missed between two polls if its ID does not change on this platform).
+fn can_open(
+    is_previous_id: bool,
+    disconnected: bool,
+    elapsed: Duration,
+) -> bool {
+    !is_previous_id || disconnected || elapsed >= DISCONNECT_GRACE
+}
+
+/// Tracks a device while it reboots, for callers polling on their own terms.
+/// Prefer [DfuDevice::wait_for_reconnect] otherwise.
+pub struct DfuReconnect {
+    port: DevicePort,
+    previous_id: nusb::DeviceId,
+    started: Instant,
+    disconnected: bool,
+    last_error: Option<DfuError>,
+}
+
+impl DfuReconnect {
+    /// Start tracking `device`, which should just have been rebooted.
+    pub fn new(device: &DfuDevice) -> Self {
+        DfuReconnect {
+            port: DevicePort {
+                vendor_id: device.vendor_id(),
+                product_id: device.product_id(),
+                bus_id: device.bus_id().to_string(),
+                port_chain: device.dev.port_chain().to_vec(),
+            },
+            previous_id: device.id(),
+            started: Instant::now(),
+            disconnected: false,
+            last_error: None,
+        }
+    }
+
+    /// Last error met while opening the device, if any.
+    pub fn last_error(&self) -> Option<&DfuError> {
+        self.last_error.as_ref()
+    }
+
+    /// Check once for the device, sleeping briefly if it is not available yet.
+    ///
+    /// Failing to open it is not an error here, as permissions may not be
+    /// applied yet right after it re-enumerates.
+    pub fn poll(&mut self) -> Result<Option<DfuDevice>, DfuError> {
+        let candidate = nusb::list_devices().wait()?.find(|dev| {
+            self.port.matches(
+                dev.vendor_id(),
+                dev.product_id(),
+                dev.bus_id(),
+                dev.port_chain(),
+            ) && is_dfu_device(dev)
+        });
+        match candidate {
+            None => self.disconnected = true,
+            Some(dev)
+                if can_open(
+                    dev.id() == self.previous_id,
+                    self.disconnected,
+                    self.started.elapsed(),
+                ) =>
+            {
+                match DfuDevice::from_device_info(dev) {
+                    Ok(Some(device)) => return Ok(Some(device)),
+                    Ok(None) => {}
+                    Err(err) => {
+                        log::debug!("Rebooted device not ready: {err}");
+                        self.last_error = Some(err);
+                    }
+                }
+            }
+            Some(_) => {}
+        }
+        std::thread::sleep(RECONNECT_POLL_INTERVAL);
+        Ok(None)
+    }
 }
 
 fn is_dfu_descriptor(desc: &nusb::descriptors::Descriptor) -> bool {
@@ -225,6 +353,41 @@ mod tests {
         ));
         assert!(!is_dfu_mode_interface(DFU_CLASS, 0x2, 0x2));
         assert!(!is_dfu_mode_interface(0x8, DFU_SUBCLASS, 0x2));
+    }
+
+    #[test]
+    fn test_device_port_matches() {
+        let port = DevicePort {
+            vendor_id: 0x0483,
+            product_id: 0xdf11,
+            bus_id: "3".to_string(),
+            port_chain: vec![3, 2],
+        };
+
+        assert!(port.matches(0x0483, 0xdf11, "3", &[3, 2]));
+
+        // same model on another port, or another hub level
+        assert!(!port.matches(0x0483, 0xdf11, "3", &[3, 1]));
+        assert!(!port.matches(0x0483, 0xdf11, "3", &[3, 2, 1]));
+        assert!(!port.matches(0x0483, 0xdf11, "4", &[3, 2]));
+
+        // another model on the same port
+        assert!(!port.matches(0x0483, 0x5740, "3", &[3, 2]));
+        assert!(!port.matches(0x1209, 0xdf11, "3", &[3, 2]));
+    }
+
+    #[test]
+    fn test_can_open() {
+        let early = Duration::ZERO;
+
+        // new enumeration
+        assert!(can_open(false, false, early));
+        assert!(can_open(false, true, early));
+
+        // same ID: only once it has left, or has not left in time
+        assert!(!can_open(true, false, early));
+        assert!(can_open(true, true, early));
+        assert!(can_open(true, false, DISCONNECT_GRACE));
     }
 
     #[test]

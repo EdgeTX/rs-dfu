@@ -45,7 +45,7 @@ use std::time::Duration;
 // Re-exports
 pub use connection::DfuConnection;
 pub use descriptor::{DFUSE_VERSION_NUMBER, DfuDescriptor};
-pub use device::{DfuDevice, find_dfu_devices};
+pub use device::{DfuDevice, DfuReconnect, find_dfu_devices};
 pub use error::DfuError;
 pub use interface::DfuInterface;
 pub use memory::{DfuMemSegment, DfuMemory};

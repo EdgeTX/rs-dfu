@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, process::ExitCode};
+use std::{fs, path::PathBuf, process::ExitCode, time::Duration};
 
 use clap::{Parser, Subcommand};
 use clap_num::maybe_hex;
@@ -17,6 +17,8 @@ mod list;
 mod read;
 mod reboot;
 mod write;
+
+pub(crate) const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

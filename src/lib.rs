@@ -53,6 +53,7 @@ mod ffi {
             reboot_addr: u32,
         ) -> Result<()>;
         fn rediscover(&mut self) -> Result<bool>;
+        fn reconnect_error(&self) -> String;
         fn leave(&self) -> Result<()>;
     }
 
@@ -115,6 +116,7 @@ pub struct DfuDeviceFilter {
 
 pub struct DfuDevice {
     inner: dfu::DfuDevice,
+    reconnect: Option<dfu::DfuReconnect>,
 }
 
 pub struct DfuInterface {
@@ -153,7 +155,10 @@ impl DfuDeviceFilter {
 
 impl DfuDevice {
     fn new(device: dfu::DfuDevice) -> Self {
-        DfuDevice { inner: device }
+        DfuDevice {
+            inner: device,
+            reconnect: None,
+        }
     }
 
     fn device_info(&self) -> ffi::DeviceInfo {
@@ -238,16 +243,26 @@ impl DfuDevice {
     }
 
     fn rediscover(&mut self) -> Result<bool, dfu::DfuError> {
-        let devices = dfu::find_dfu_devices(
-            Some(self.inner.vendor_id()),
-            Some(self.inner.product_id()),
-        )?;
-        Ok(if !devices.is_empty() {
-            self.inner = devices.into_iter().next().unwrap();
+        let reconnect = self
+            .reconnect
+            .get_or_insert_with(|| dfu::DfuReconnect::new(&self.inner));
+        Ok(if let Some(device) = reconnect.poll()? {
+            self.inner = device;
+            self.reconnect = None;
             true
         } else {
             false
         })
+    }
+
+    /// Why the device could not be opened while waiting in [Self::rediscover],
+    /// or an empty string if it never came back.
+    fn reconnect_error(&self) -> String {
+        self.reconnect
+            .as_ref()
+            .and_then(|reconnect| reconnect.last_error())
+            .map(|err| err.to_string())
+            .unwrap_or_default()
     }
 
     fn leave(&self) -> Result<(), dfu::DfuError> {
