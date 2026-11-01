@@ -4,6 +4,18 @@ use crate::{DfuConnection, DfuError, descriptor::*, interface::*};
 
 const DFU_CLASS: u8 = 0xFE;
 const DFU_SUBCLASS: u8 = 0x1;
+const DFU_PROTOCOL_RUNTIME: u8 = 0x1;
+
+/// Whether an interface can be used to talk to a device in DFU mode.
+///
+/// Runtime interfaces are excluded: they are exposed by devices in normal
+/// operation, which may not even be accessible to the user, and they would
+/// first have to be detached into DFU mode, which is not supported.
+fn is_dfu_mode_interface(class: u8, subclass: u8, protocol: u8) -> bool {
+    class == DFU_CLASS
+        && subclass == DFU_SUBCLASS
+        && protocol != DFU_PROTOCOL_RUNTIME
+}
 
 /// DFU device representation
 pub struct DfuDevice {
@@ -15,7 +27,12 @@ impl DfuDevice {
     fn from_device_info(
         device: nusb::DeviceInfo,
     ) -> Result<Option<Self>, DfuError> {
-        let open_dev: nusb::Device = device.open().wait()?;
+        let open_dev: nusb::Device =
+            device.open().wait().map_err(|source| DfuError::Open {
+                vendor_id: device.vendor_id(),
+                product_id: device.product_id(),
+                source,
+            })?;
         let dfu_interfaces: Vec<DfuInterface> = open_dev
             .configurations()
             .flat_map(|configuration| {
@@ -23,9 +40,11 @@ impl DfuDevice {
                 let config = configuration.configuration_value();
                 configuration.interface_alt_settings().filter_map(
                     move |alt_setting| {
-                        if alt_setting.class() != DFU_CLASS
-                            || alt_setting.subclass() != DFU_SUBCLASS
-                        {
+                        if !is_dfu_mode_interface(
+                            alt_setting.class(),
+                            alt_setting.subclass(),
+                            alt_setting.protocol(),
+                        ) {
                             None
                         } else {
                             DfuInterface::new(
@@ -159,7 +178,7 @@ fn is_dfu_descriptor(desc: &nusb::descriptors::Descriptor) -> bool {
 
 fn is_dfu_device(dev: &nusb::DeviceInfo) -> bool {
     dev.interfaces()
-        .any(|i| i.class() == DFU_CLASS && i.subclass() == DFU_SUBCLASS)
+        .any(|i| is_dfu_mode_interface(i.class(), i.subclass(), i.protocol()))
 }
 
 pub fn find_dfu_devices(
@@ -192,6 +211,21 @@ fn bcd_version_string(bcd_version: u16) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_dfu_mode_interface() {
+        // DFU mode, and DFU 1.0 devices reporting protocol 0
+        assert!(is_dfu_mode_interface(DFU_CLASS, DFU_SUBCLASS, 0x2));
+        assert!(is_dfu_mode_interface(DFU_CLASS, DFU_SUBCLASS, 0x0));
+
+        assert!(!is_dfu_mode_interface(
+            DFU_CLASS,
+            DFU_SUBCLASS,
+            DFU_PROTOCOL_RUNTIME
+        ));
+        assert!(!is_dfu_mode_interface(DFU_CLASS, 0x2, 0x2));
+        assert!(!is_dfu_mode_interface(0x8, DFU_SUBCLASS, 0x2));
+    }
 
     #[test]
     fn test_bcd_string() {
