@@ -28,12 +28,10 @@ impl DfuDevice {
         device: nusb::DeviceInfo,
     ) -> Result<Option<Self>, DfuError> {
         let open_dev: nusb::Device =
-            device.open().wait().inspect_err(|err| {
-                log::error!(
-                    "Unable to open {:04X}:{:04X}: {err}",
-                    device.vendor_id(),
-                    device.product_id(),
-                )
+            device.open().wait().map_err(|source| DfuError::Open {
+                vendor_id: device.vendor_id(),
+                product_id: device.product_id(),
+                source,
             })?;
         let dfu_interfaces: Vec<DfuInterface> = open_dev
             .configurations()

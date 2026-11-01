@@ -1,6 +1,11 @@
 #[derive(Debug)]
 pub enum DfuError {
     Usb(nusb::Error),
+    Open {
+        vendor_id: u16,
+        product_id: u16,
+        source: nusb::Error,
+    },
     Transfer(nusb::transfer::TransferError),
     Status(u8),
     UnalignedAddress,
@@ -15,6 +20,15 @@ impl std::fmt::Display for DfuError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DfuError::Usb(err) => write!(f, "USB error: {}", err),
+            DfuError::Open {
+                vendor_id,
+                product_id,
+                source,
+            } => write!(
+                f,
+                "Unable to open {:04X}:{:04X}: {}",
+                vendor_id, product_id, source
+            ),
             DfuError::Transfer(err) => write!(f, "Transfer error: {}", err),
             DfuError::Status(code) => {
                 write!(f, "DFU status error: code {}", code)
