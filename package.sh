@@ -41,12 +41,19 @@ if [ -f "$DEBUG_LIB" ]; then
     echo "Copied: $DEBUG_LIB -> ${LIB_PREFIX}${LIB_NAME}d.${STATIC_EXT}"
 fi
 
+if [ ! -f "$RELEASE_LIB" ] && [ ! -f "$DEBUG_LIB" ]; then
+    echo "Error: no library found: $RELEASE_LIB or $DEBUG_LIB" >&2
+    exit 1
+fi
+
 # Copy headers
 HEADER_FILE="${TARGET_DIR}/cxxbridge/rs-dfu/src/lib.rs.h"
-if [ -f "$HEADER_FILE" ]; then
-  cp "$HEADER_FILE" "dist/include/$LIB_NAME.h"
-  echo "Copied: $HEADER_FILE"
+if [ ! -f "$HEADER_FILE" ]; then
+  echo "Error: header not found: $HEADER_FILE" >&2
+  exit 1
 fi
+cp "$HEADER_FILE" "dist/include/$LIB_NAME.h"
+echo "Copied: $HEADER_FILE"
 
 # Copy CMake configuration
 CMAKE_CONFIG="cmake/${LIB_NAME}-config.cmake"
