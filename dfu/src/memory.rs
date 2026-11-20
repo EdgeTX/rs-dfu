@@ -43,6 +43,7 @@ impl DfuMemory {
     pub fn get_erase_pages(&self, start_addr: u32, end_addr: u32) -> Vec<u32> {
         self.segments
             .iter()
+            .filter(|s| s.erasable())
             .filter(|s| {
                 s.contains(start_addr)
                     || s.contains(end_addr)
@@ -70,7 +71,7 @@ impl DfuMemSegment {
         (self.end_addr - self.start_addr) / self.page_size
     }
     pub fn is_contained_in(&self, start_addr: u32, end_addr: u32) -> bool {
-        start_addr <= self.start_addr && self.end_addr < end_addr
+        start_addr <= self.start_addr && self.end_addr - 1 <= end_addr
     }
     pub fn contains(&self, addr: u32) -> bool {
         addr >= self.start_addr && addr < self.end_addr
@@ -80,12 +81,11 @@ impl DfuMemSegment {
         start_addr: u32,
         end_addr: u32,
     ) -> (u32, u32) {
-        let erase_start = cmp::max(start_addr, self.start_addr);
-        let erase_end = cmp::min(end_addr, self.end_addr);
-        (
-            erase_start,
-            (erase_end + 1 - erase_start).div_ceil(self.page_size()),
-        )
+        let start = cmp::max(start_addr, self.start_addr);
+        let erase_start = self.start_addr
+            + ((start - self.start_addr) / self.page_size) * self.page_size;
+        let erase_end = cmp::min(end_addr, self.end_addr - 1);
+        (erase_start, (erase_end - erase_start) / self.page_size + 1)
     }
     pub fn readable(&self) -> bool {
         self.mem_type & 1 == 1
@@ -144,6 +144,57 @@ pub(crate) fn parse_memory_layout(mem_layout_str: &str) -> Option<DfuMemory> {
 mod tests {
     use super::*;
     use nonempty::nonempty;
+
+    #[test]
+    fn test_erase_pages_across_segments() {
+        let mem = parse_memory_layout(
+            "@Internal Flash /0x08000000/04*016Kg,01*064Kg,07*128Kg",
+        )
+        .unwrap();
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x0801ffff),
+            vec![0x08000000, 0x08004000, 0x08008000, 0x0800c000, 0x08010000],
+        );
+        assert_eq!(
+            mem.get_erase_pages(0x08008000, 0x08020000),
+            vec![0x08008000, 0x0800c000, 0x08010000, 0x08020000],
+        );
+    }
+
+    #[test]
+    fn test_erase_pages_rounds_unaligned_start_down() {
+        let mem = parse_memory_layout("@Flash /0x08000000/8*08Kg").unwrap();
+        assert_eq!(
+            mem.get_erase_pages(0x08001000, 0x08002800),
+            vec![0x08000000, 0x08002000],
+        );
+    }
+
+    #[test]
+    fn test_inclusive_end_keeps_middle_segment() {
+        let mem = parse_memory_layout(
+            "@Flash /0x08000000/01*008Kg,02*004Kg,01*008Kg",
+        )
+        .unwrap();
+        assert_eq!(mem.find_segments(0x08000000, Some(0x08004000)).len(), 3);
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x08004000),
+            vec![0x08000000, 0x08002000, 0x08003000, 0x08004000],
+        );
+    }
+
+    #[test]
+    fn test_erase_pages_skips_non_erasable_segments() {
+        let mem = parse_memory_layout(
+            "@Flash /0x08000000/01*008Kg,01*008Ke,01*008Kg",
+        )
+        .unwrap();
+        assert_eq!(
+            mem.get_erase_pages(0x08000000, 0x08005fff),
+            vec![0x08000000, 0x08004000],
+        );
+        assert!(mem.get_erase_pages(0x08002000, 0x08003fff).is_empty());
+    }
 
     #[test]
     fn test_memory_layout() {
