@@ -150,7 +150,8 @@ impl DfuDevice {
                 !segments.is_empty()
                 // verify boundaries
                 && start_address >= segments.first().unwrap().start_addr()
-                && end_address.is_none_or(|addr| addr <= segments.last().unwrap().end_addr())
+                // (`end_address` is inclusive, `end_addr()` is exclusive)
+                && end_address.is_none_or(|addr| addr < segments.last().unwrap().end_addr())
             })
             .ok_or(DfuError::NoMemorySegments)
     }
