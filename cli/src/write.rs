@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::{
+    collections::HashSet,
+    io::{self, Write},
+};
 
 use dfu::{DfuDevice, DfuError};
 use uf2::{UF2RangeIterator, is_uf2_payload};
@@ -11,9 +14,12 @@ pub(crate) fn download(
     start_address: Option<u32>,
 ) -> Result<(), CliError> {
     let mut device = device;
+    // Pages erased so far: ranges sharing a page must not erase it again,
+    // as this would wipe data written by a previous range.
+    let mut erased_pages = HashSet::new();
     reset_state(&device)?;
     if !is_uf2_payload(data) {
-        download_range(data, &device, start_address)?;
+        download_range(data, &device, start_address, &mut erased_pages)?;
     } else {
         for addr_range in UF2RangeIterator::new(data)? {
             if let Some(reboot_addr) = addr_range.reboot_address {
@@ -23,11 +29,13 @@ pub(crate) fn download(
                     &addr_range.payload,
                     reboot_addr,
                 )?;
+                erased_pages.clear();
             } else {
                 download_range(
                     &addr_range.payload,
                     &device,
                     Some(addr_range.start_address),
+                    &mut erased_pages,
                 )?;
             }
         }
@@ -45,7 +53,11 @@ fn download_range(
     data: &[u8],
     device: &DfuDevice,
     start_address: Option<u32>,
+    erased_pages: &mut HashSet<u32>,
 ) -> Result<(), DfuError> {
+    if data.is_empty() {
+        return Ok(());
+    }
     let start_address =
         start_address.unwrap_or(device.get_default_start_address());
     let end_address = start_address + (data.len() as u32) - 1;
@@ -54,7 +66,11 @@ fn download_range(
     let connection = device.connect(intf.interface(), intf.alt_setting())?;
 
     // erase first
-    let erase_pages = intf.get_erase_pages(start_address, end_address);
+    let erase_pages: Vec<u32> = intf
+        .get_erase_pages(start_address, end_address)
+        .into_iter()
+        .filter(|page| !erased_pages.contains(page))
+        .collect();
     let pages = erase_pages.len();
 
     for (page, page_addr) in erase_pages.into_iter().enumerate() {
@@ -69,6 +85,7 @@ fn download_range(
             println!(" ❌");
             return Err(err);
         }
+        erased_pages.insert(page_addr);
     }
     println!();
 
