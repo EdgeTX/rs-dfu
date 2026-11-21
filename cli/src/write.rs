@@ -1,12 +1,9 @@
-use std::{
-    io::{self, Write},
-    time::{Duration, Instant},
-};
+use std::io::{self, Write};
 
-use dfu::{DfuDevice, DfuError, find_dfu_devices};
+use dfu::{DfuDevice, DfuError};
 use uf2::{UF2RangeIterator, is_uf2_payload};
 
-use crate::CliError;
+use crate::{CliError, RECONNECT_TIMEOUT};
 
 pub(crate) fn download(
     data: &[u8],
@@ -109,20 +106,9 @@ fn reboot(
     drop(connection);
 
     println!("Waiting for device to reconnect...");
-    let start = Instant::now();
-    loop {
-        let devices = find_dfu_devices(
-            Some(device.vendor_id()),
-            Some(device.product_id()),
-        )?;
-        if !devices.is_empty() {
-            println!("Device reconnected");
-            return Ok(devices.into_iter().next().unwrap());
-        }
-        if start.elapsed() >= Duration::from_secs(30) {
-            return Err(DfuError::Timeout);
-        }
-    }
+    let device = device.wait_for_reconnect(RECONNECT_TIMEOUT)?;
+    println!("Device reconnected");
+    Ok(device)
 }
 
 fn leave(device: &DfuDevice) -> Result<(), DfuError> {

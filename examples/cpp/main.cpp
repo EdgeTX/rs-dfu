@@ -87,7 +87,12 @@ void reboot_and_rediscover(DfuDevice &device, uint32_t addr,
       return;
     }
   }
-  throw std::runtime_error("timeout while reconnection to device");
+  std::string msg = "timeout while reconnection to device";
+  auto cause = device.reconnect_error();
+  if (!cause.empty()) {
+    msg += ": " + std::string(cause);
+  }
+  throw std::runtime_error(msg);
 }
 
 int main(int argc, char *argv[]) {
