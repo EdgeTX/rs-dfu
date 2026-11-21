@@ -8,7 +8,9 @@ if(WIN32)
     set(_rs_dfu_shared_ext "dll")
     set(_rs_dfu_static_ext "lib")
     set(_rs_dfu_debug_suffix "d")
-    set(_rs_dfu_system_libs ws2_32 userenv winusb ntdll cfgmgr32)
+    # synchronization: WaitOnAddress/WakeByAddress*, used by the Rust
+    # standard library
+    set(_rs_dfu_system_libs ws2_32 userenv winusb ntdll cfgmgr32 synchronization)
 elseif(APPLE)
     set(_rs_dfu_lib_prefix "lib")
     set(_rs_dfu_shared_ext "dylib")
