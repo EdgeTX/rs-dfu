@@ -58,7 +58,7 @@ if(APPLE)
   )
 elseif(WIN32)
   target_link_libraries(cpp-example PRIVATE
-    ws2_32 userenv winusb ntdll cfgmgr32
+    ws2_32 userenv winusb ntdll cfgmgr32 synchronization
   )
 endif()
 
