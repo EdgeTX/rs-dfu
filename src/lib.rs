@@ -208,6 +208,14 @@ impl DfuDevice {
         let connection =
             self.inner.connect(intf.interface(), intf.alt_setting())?;
 
+        // DfuSe uploads read relative to the device's address pointer, so it
+        // must be set to the requested start first. SET_ADDRESS leaves the
+        // device in dfuDNLOAD_IDLE, and UPLOAD is only accepted from dfuIDLE
+        // or dfuUPLOAD_IDLE, hence the reset on either side.
+        connection.reset_state()?;
+        connection.dfuse_set_address(start_address)?;
+        connection.reset_state()?;
+
         Ok(Box::new(DfuUpload {
             connection,
             length,
