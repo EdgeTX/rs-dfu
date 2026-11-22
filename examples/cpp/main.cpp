@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -124,11 +125,17 @@ int main(int argc, char *argv[]) {
     SliceU8 buffer_slice(buffer.data(), buffer.size());
     if (!is_uf2_payload(buffer_slice)) {
       auto addr = device.default_start_address();
-      return write_region(device, addr, buffer_slice);
+      write_region(device, addr, buffer_slice);
+      device.leave_to(addr);
+      return 0;
     }
 
     auto range_it = UF2RangeIterator::from_slice(buffer_slice);
     auto addr_range = UF2AddressRange::new_empty();
+
+    // Start of the image written last (first range since the last reboot):
+    // the STM32 system bootloader starts the application from there.
+    std::optional<uint32_t> leave_address;
 
     while (range_it->next(*addr_range)) {
       auto addr = addr_range->start_address();
@@ -137,11 +144,20 @@ int main(int argc, char *argv[]) {
       uint32_t reboot_address = 0;
       if (addr_range->reboot_address(reboot_address)) {
         reboot_and_rediscover(device, addr, payload, reboot_address, 30s);
+        leave_address.reset();
       } else {
         write_region(device, addr, payload);
+        if (!leave_address && payload.size() > 0) {
+          leave_address = addr;
+        }
       }
     }
-    device.leave();
+
+    if (leave_address) {
+      device.leave_to(*leave_address);
+    } else {
+      device.leave();
+    }
 
     return 0;
 

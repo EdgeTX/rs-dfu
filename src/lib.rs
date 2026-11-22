@@ -55,6 +55,7 @@ mod ffi {
         fn rediscover(&mut self) -> Result<bool>;
         fn reconnect_error(&self) -> String;
         fn leave(&self) -> Result<()>;
+        fn leave_to(&self, addr: u32) -> Result<()>;
     }
 
     extern "Rust" {
@@ -273,9 +274,19 @@ impl DfuDevice {
             .unwrap_or_default()
     }
 
+    /// Leave DFU mode without setting the address pointer: the STM32 system
+    /// bootloader then jumps to the address of the last chunk written.
+    /// Prefer [Self::leave_to].
     fn leave(&self) -> Result<(), dfu::DfuError> {
         let connection = self.inner.connect(0, 0)?;
         connection.leave()
+    }
+
+    /// Leave DFU mode and start the application whose vector table is at
+    /// `addr`, normally the start address of the image written last.
+    fn leave_to(&self, addr: u32) -> Result<(), dfu::DfuError> {
+        let connection = self.inner.connect(0, 0)?;
+        connection.dfuse_leave(addr)
     }
 }
 
