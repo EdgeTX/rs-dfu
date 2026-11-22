@@ -4,7 +4,8 @@ mod iter;
 
 pub const UF2_BLOCK_SIZE: usize = 512;
 pub const UF2_HEADER_SIZE: usize = 32;
-pub const UF2_MAX_PAYLOAD_SIZE: usize = UF2_BLOCK_SIZE - UF2_HEADER_SIZE;
+pub const UF2_MAX_PAYLOAD_SIZE: usize =
+    UF2_BLOCK_SIZE - UF2_HEADER_SIZE - std::mem::size_of::<u32>();
 
 pub const UF2_MAGIC_START1: u32 = 0x0a324655; // "UF2\n"
 pub const UF2_MAGIC_START2: u32 = 0x9e5d5157; // Randomly selected
@@ -40,6 +41,7 @@ pub struct UF2Extension {
     pub payload: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub struct UF2DecodeError {
     pub err: String,
 }
@@ -93,14 +95,17 @@ impl UF2BlockData {
         let extension_payload =
             &data[(UF2_HEADER_SIZE + payload_size)..(data.len() - 4)];
 
+        let flags = UF2Flags(flags);
+        let extensions = decode_extensions(&flags, extension_payload)?;
+
         Ok(UF2BlockData {
-            flags: UF2Flags(flags),
+            flags,
             flash_address: extract_u32(data, 12),
             block_nr: extract_u32(data, 20),
             total_blocks: extract_u32(data, 24),
             file_size: extract_u32(data, 28),
             payload: Vec::from(payload),
-            extensions: decode_extensions(UF2Flags(flags), extension_payload),
+            extensions,
         })
     }
 
@@ -195,30 +200,56 @@ fn extract_u32(data: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(data[offset..(offset + 4)].try_into().unwrap())
 }
 
-fn decode_extensions(flags: UF2Flags, data: &[u8]) -> Vec<UF2Extension> {
+fn decode_extensions(
+    flags: &UF2Flags,
+    data: &[u8],
+) -> Result<Vec<UF2Extension>, UF2DecodeError> {
     let mut offset = 0;
     let mut extensions: Vec<UF2Extension> = Vec::new();
 
     if flags.extension_tags_present() {
         while offset < data.len() {
+            if data.len() - offset < std::mem::size_of::<u32>() {
+                if data[offset..].iter().all(|byte| *byte == 0) {
+                    break;
+                }
+                return Err(UF2DecodeError::new(
+                    "truncated extension header".to_string(),
+                ));
+            }
             let hdr = extract_u32(data, offset);
             if hdr == 0 {
                 break;
             }
 
-            let length = hdr & 0xff;
+            let length = (hdr & 0xff) as usize;
             let tag = (hdr >> 8) & 0xffffff;
+
+            if length < std::mem::size_of::<u32>() {
+                return Err(UF2DecodeError::new(format!(
+                    "invalid extension length ({length})"
+                )));
+            }
+            let end = offset.checked_add(length).ok_or_else(|| {
+                UF2DecodeError::new("extension length overflow".to_string())
+            })?;
+            if end > data.len() {
+                return Err(UF2DecodeError::new(format!(
+                    "extension length exceeds remaining block data ({length})"
+                )));
+            }
 
             extensions.push(UF2Extension {
                 tag,
-                payload: Vec::from(
-                    &data[(offset + 4)..(offset + (length as usize))],
-                ),
+                payload: Vec::from(&data[(offset + 4)..end]),
             });
 
-            offset += pad32(length as usize);
+            let padded_length = pad32(length);
+            offset = offset.checked_add(padded_length).ok_or_else(|| {
+                UF2DecodeError::new("extension offset overflow".to_string())
+            })?;
         }
     }
 
-    extensions
+    Ok(extensions)
 }
