@@ -19,13 +19,29 @@ impl<'a> UF2RangeIterator<'a> {
         }
         // Validate every block before callers can start flashing a range.
         for (i, chunk) in data.chunks(UF2_BLOCK_SIZE).enumerate() {
-            UF2BlockData::decode(chunk).map_err(|err| {
+            let block = UF2BlockData::decode(chunk).map_err(|err| {
                 UF2DecodeError::new(format!(
                     "invalid UF2 block at {:#x}: {}",
                     i * UF2_BLOCK_SIZE,
-                    err
+                    err.err
                 ))
             })?;
+            if block.get_extension(REBOOT_EXTENSION_TAG).is_some()
+                && block.get_reboot_address().is_none()
+            {
+                return Err(UF2DecodeError::new(format!(
+                    "invalid reboot extension at {:#x}",
+                    i * UF2_BLOCK_SIZE
+                )));
+            }
+            if block.flags.is_main_flash()
+                && block.get_reboot_address().is_some()
+            {
+                return Err(UF2DecodeError::new(format!(
+                    "reboot extension on main-flash block at {:#x}",
+                    i * UF2_BLOCK_SIZE
+                )));
+            }
         }
 
         Ok(UF2RangeIterator {
@@ -42,10 +58,13 @@ impl<'a> Iterator for UF2RangeIterator<'a> {
         let mut range = self.pending.take();
         for data in self.block_iter.by_ref() {
             // All blocks were decoded successfully in new().
-            let block = UF2BlockData::decode(data).ok()?;
+            let block = UF2BlockData::decode(data)
+                .expect("block was validated in UF2RangeIterator::new");
             let reboot_address = if block.is_reboot_block() {
                 block.get_reboot_address()
-            } else if block.flags.is_main_flash() {
+            } else if block.flags.is_main_flash()
+                && !block.flags.file_container()
+            {
                 None
             } else {
                 continue;
@@ -61,8 +80,10 @@ impl<'a> Iterator for UF2RangeIterator<'a> {
             if let Some(current) = range.as_mut() {
                 if current.reboot_address.is_none()
                     && next.reboot_address.is_none()
-                    && current.start_address + (current.payload.len() as u32)
-                        == next.start_address
+                    && current
+                        .start_address
+                        .checked_add(current.payload.len() as u32)
+                        == Some(next.start_address)
                 {
                     current.payload.extend(next.payload);
                 } else {
@@ -190,10 +211,16 @@ mod tests {
     }
 
     #[test]
-    fn reboot_tag_on_main_flash_does_not_trigger_reboot() {
-        let result = ranges(&block(0x08000000, &[1; 4], 0, Some(0x20000001)));
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].reboot_address, None);
+    fn rejects_reboot_tag_on_main_flash() {
+        assert!(
+            UF2RangeIterator::new(&block(
+                0x08000000,
+                &[1; 4],
+                0,
+                Some(0x20000001)
+            ))
+            .is_err()
+        );
     }
 
     #[test]
@@ -212,7 +239,96 @@ mod tests {
     }
 
     #[test]
+    fn rejects_payload_sizes_that_overlap_the_final_magic() {
+        assert!(
+            UF2RangeIterator::new(&block(
+                0x08000000,
+                &[0; UF2_MAX_PAYLOAD_SIZE],
+                0,
+                None
+            ))
+            .is_ok()
+        );
+        for payload_size in 477..=480 {
+            let mut data = block(0x08000000, &[], 0, None);
+            data[16..20].copy_from_slice(&(payload_size as u32).to_le_bytes());
+            assert!(UF2RangeIterator::new(&data).is_err());
+        }
+    }
+
+    #[test]
+    fn rejects_short_extension_lengths() {
+        for length in 0..=3 {
+            let mut data =
+                block(0, &[], UF2Flags::EXTENSION_TAGS_PRESENT, None);
+            data[UF2_HEADER_SIZE..UF2_HEADER_SIZE + 4].copy_from_slice(
+                &((VERSION_EXTENSION_TAG << 8) | length).to_le_bytes(),
+            );
+            assert!(UF2RangeIterator::new(&data).is_err());
+        }
+    }
+
+    #[test]
+    fn rejects_extension_past_remaining_block_data() {
+        let mut data = block(
+            0,
+            &[0; UF2_MAX_PAYLOAD_SIZE - 4],
+            UF2Flags::EXTENSION_TAGS_PRESENT,
+            None,
+        );
+        let extension = UF2_HEADER_SIZE + UF2_MAX_PAYLOAD_SIZE - 4;
+        data[extension..extension + 4]
+            .copy_from_slice(&((VERSION_EXTENSION_TAG << 8) | 8).to_le_bytes());
+        assert!(UF2RangeIterator::new(&data).is_err());
+    }
+
+    #[test]
+    fn rejects_truncated_nonzero_extension_header() {
+        let mut data = block(
+            0,
+            &[0; UF2_MAX_PAYLOAD_SIZE - 3],
+            UF2Flags::EXTENSION_TAGS_PRESENT,
+            None,
+        );
+        data[UF2_HEADER_SIZE + UF2_MAX_PAYLOAD_SIZE - 3] = 1;
+        assert!(UF2RangeIterator::new(&data).is_err());
+    }
+
+    #[test]
     fn rejects_empty_input() {
         assert!(UF2RangeIterator::new(&[]).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_reboot_extension() {
+        let mut data = block(
+            0x20000000,
+            &[1; 4],
+            UF2Flags::NOT_MAIN_FLASH,
+            Some(0x20000001),
+        );
+        let extension = UF2_HEADER_SIZE + 4;
+        data[extension..extension + 4]
+            .copy_from_slice(&((REBOOT_EXTENSION_TAG << 8) | 6).to_le_bytes());
+        assert!(UF2RangeIterator::new(&data).is_err());
+    }
+
+    #[test]
+    fn does_not_merge_ranges_across_address_overflow() {
+        let data = [
+            block(0xffffff00, &[1; 256], 0, None),
+            block(0, &[2; 4], 0, None),
+        ]
+        .concat();
+        let result = ranges(&data);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn skips_file_container_blocks() {
+        assert!(
+            ranges(&block(0, &[1; 4], UF2Flags::FILE_CONTAINER, None))
+                .is_empty()
+        );
     }
 }
