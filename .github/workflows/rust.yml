@@ -136,8 +136,35 @@ jobs:
           name: library-macOS-universal
           path: rs_dfu-universal-apple-darwin.tar.gz
 
+  check-version:
+    name: Check tag matches Cargo versions
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare tag with package versions
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          expected="${TAG#v}"
+          status=0
+          # Packages that share the release version (uf2 is versioned separately)
+          for pkg in rs-dfu rdfu dfu; do
+            version=$(cargo metadata --no-deps --format-version 1 --locked \
+              | jq -r --arg pkg "$pkg" '.packages[] | select(.name == $pkg) | .version')
+            if [ "$version" != "$expected" ]; then
+              echo "::error::$pkg version is '$version' but tag $TAG expects '$expected'"
+              status=1
+            else
+              echo "$pkg $version matches tag $TAG"
+            fi
+          done
+          exit $status
+
   release:
-    needs: [build, macos-universal]
+    needs: [check-version, build, macos-universal]
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag'
     steps:
