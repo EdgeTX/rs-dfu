@@ -17,9 +17,13 @@ pub(crate) fn download(
     // Pages erased so far: ranges sharing a page must not erase it again,
     // as this would wipe data written by a previous range.
     let mut erased_pages = HashSet::new();
+    // Start of the image written last, i.e. the first range written since
+    // the last reboot: where the application's vector table should be.
+    let mut leave_address = None;
     reset_state(&device)?;
     if !is_uf2_payload(data) {
-        download_range(data, &device, start_address, &mut erased_pages)?;
+        leave_address =
+            download_range(data, &device, start_address, &mut erased_pages)?;
     } else {
         for addr_range in UF2RangeIterator::new(data)? {
             if let Some(reboot_addr) = addr_range.reboot_address {
@@ -30,17 +34,19 @@ pub(crate) fn download(
                     reboot_addr,
                 )?;
                 erased_pages.clear();
+                leave_address = None;
             } else {
-                download_range(
+                let start = download_range(
                     &addr_range.payload,
                     &device,
                     Some(addr_range.start_address),
                     &mut erased_pages,
                 )?;
+                leave_address = leave_address.or(start);
             }
         }
     }
-    Ok(leave(&device)?)
+    Ok(leave(&device, leave_address)?)
 }
 
 pub(crate) fn reset_state(device: &DfuDevice) -> Result<(), DfuError> {
@@ -54,9 +60,9 @@ fn download_range(
     device: &DfuDevice,
     start_address: Option<u32>,
     erased_pages: &mut HashSet<u32>,
-) -> Result<(), DfuError> {
+) -> Result<Option<u32>, DfuError> {
     if data.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let start_address =
         start_address.unwrap_or(device.get_default_start_address());
@@ -109,7 +115,7 @@ fn download_range(
     }
     println!();
 
-    Ok(())
+    Ok(Some(start_address))
 }
 
 fn reboot(
@@ -128,8 +134,13 @@ fn reboot(
     Ok(device)
 }
 
-fn leave(device: &DfuDevice) -> Result<(), DfuError> {
-    println!("Leaving DFU...");
+fn leave(device: &DfuDevice, address: Option<u32>) -> Result<(), DfuError> {
     let connection = device.connect(0, 0)?;
-    connection.leave()
+    if let Some(address) = address {
+        println!("Leaving DFU (start @ {address:#010x})...");
+        connection.dfuse_leave(address)
+    } else {
+        println!("Leaving DFU...");
+        connection.leave()
+    }
 }

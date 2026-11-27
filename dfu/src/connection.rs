@@ -138,11 +138,15 @@ impl DfuConnection {
         reboot_addr: u32,
     ) -> Result<(), DfuError> {
         self.download(addr, data)?;
-        self.dfuse_set_address(reboot_addr)?;
-        let _ = self.dfu_dnload(0, &[]);
-        Ok(())
+        self.dfuse_leave(reboot_addr)
     }
 
+    /// Leave DFU mode without setting the address pointer first.
+    ///
+    /// On the STM32 system bootloader, the device then jumps to whatever the
+    /// address pointer holds, which after a download is the address of the
+    /// last chunk written, not the start of the image (AN3156, "Leave DFU
+    /// mode"). Prefer [Self::dfuse_leave] with the image's start address.
     pub fn leave(&self) -> Result<(), DfuError> {
         let _ = self.dfu_dnload(0, &[]);
         Ok(())
@@ -159,9 +163,19 @@ impl DfuConnection {
         self.dfu_dnload(0, &erase_cmd)
     }
 
+    /// Leave DFU mode and start the application whose vector table is at
+    /// `addr`.
+    ///
+    /// Sets the address pointer to `addr`, then sends a zero-length
+    /// DFU_DNLOAD. The STM32 system bootloader jumps to the reset handler
+    /// stored at `addr + 4` (AN3156, "Leave DFU mode"). Bootloaders that
+    /// reset on leave instead (e.g. EdgeTX) ignore the address.
+    ///
+    /// The device may disconnect while handling the final request, so its
+    /// result is ignored; only a failure to set the address is reported.
     pub fn dfuse_leave(&self, addr: u32) -> Result<(), DfuError> {
         self.dfuse_set_address(addr)?;
-        self.dfu_dnload(0, &[])
+        self.leave()
     }
 
     pub fn dfuse_set_address(&self, addr: u32) -> Result<(), DfuError> {
