@@ -37,6 +37,9 @@ enum Commands {
         /// product ID (ex: "df11")
         #[clap(short, long, value_parser=hex_u16)]
         product: Option<u16>,
+        /// physical USB port (ex: "1-2.3", as listed)
+        #[clap(long)]
+        location: Option<String>,
     },
     /// read from device
     Read {
@@ -48,6 +51,9 @@ enum Commands {
         /// product ID (ex: "df11")
         #[clap(short, long, value_parser=hex_u16)]
         product: Option<u16>,
+        /// physical USB port (ex: "1-2.3", as listed)
+        #[clap(long)]
+        location: Option<String>,
         /// start address (ex: 0x0800000)
         #[clap(short, long, value_parser=maybe_hex::<u32>)]
         start_address: Option<u32>,
@@ -65,6 +71,9 @@ enum Commands {
         /// product ID (ex: "df11")
         #[clap(short, long, value_parser=hex_u16)]
         product: Option<u16>,
+        /// physical USB port (ex: "1-2.3", as listed)
+        #[clap(long)]
+        location: Option<String>,
         /// start address (ex: 0x0800000)
         #[clap(short, long, value_parser=maybe_hex::<u32>)]
         start_address: Option<u32>,
@@ -80,6 +89,9 @@ enum Commands {
         /// product ID (ex: "df11")
         #[clap(short, long, value_parser=hex_u16)]
         product: Option<u16>,
+        /// physical USB port (ex: "1-2.3", as listed)
+        #[clap(long)]
+        location: Option<String>,
         /// start address (ex: 0x0800000)
         #[clap(short, long, value_parser=maybe_hex::<u32>)]
         start_address: Option<u32>,
@@ -96,6 +108,7 @@ impl Default for Commands {
         Commands::List {
             vendor: None,
             product: None,
+            location: None,
         }
     }
 }
@@ -114,28 +127,33 @@ fn main() -> ExitCode {
     env_logger::init();
 
     if let Err(err) = match &cli.command.unwrap_or_default() {
-        Commands::List { vendor, product } => {
-            list_dfu_devices(*vendor, *product)
-        }
+        Commands::List {
+            vendor,
+            product,
+            location,
+        } => list_dfu_devices(*vendor, *product, location),
         Commands::Read {
             file,
             vendor,
             product,
+            location,
             start_address,
             length,
-        } => read_file(file, vendor, product, start_address, length),
+        } => read_file(file, vendor, product, location, start_address, length),
         Commands::Write {
             file,
             vendor,
             product,
+            location,
             start_address,
-        } => write_file(file, vendor, product, start_address),
+        } => write_file(file, vendor, product, location, start_address),
         Commands::Reboot {
             address,
             vendor,
             product,
+            location,
             start_address,
-        } => reboot_cmd(address, vendor, product, start_address),
+        } => reboot_cmd(address, vendor, product, location, start_address),
         Commands::Uf2 { file } => show_uf2(file),
     } {
         eprintln!("Error: {err}");
@@ -148,8 +166,9 @@ fn main() -> ExitCode {
 fn get_dfu_device(
     vid: &Option<u16>,
     pid: &Option<u16>,
+    location: &Option<String>,
 ) -> Result<DfuDevice, CliError> {
-    let devices = find_dfu_devices(*vid, *pid)?;
+    let devices = find_dfu_devices(*vid, *pid, location.as_deref())?;
     if devices.is_empty() {
         return Err(CliError::NoDFUDevice);
     }
@@ -165,10 +184,11 @@ fn read_file(
     file: &PathBuf,
     vid: &Option<u16>,
     pid: &Option<u16>,
+    location: &Option<String>,
     start_address: &Option<u32>,
     length: &Option<u32>,
 ) -> Result<(), CliError> {
-    let device = get_dfu_device(vid, pid)?;
+    let device = get_dfu_device(vid, pid, location)?;
     let data = upload(device, *start_address, *length)?;
     fs::write(file, data)?;
     Ok(())
@@ -178,9 +198,10 @@ fn write_file(
     file: &PathBuf,
     vid: &Option<u16>,
     pid: &Option<u16>,
+    location: &Option<String>,
     start_address: &Option<u32>,
 ) -> Result<(), CliError> {
-    let device = get_dfu_device(vid, pid)?;
+    let device = get_dfu_device(vid, pid, location)?;
     let data = fs::read(file)?;
     download(&data, device, *start_address)?;
     Ok(())
@@ -190,9 +211,10 @@ fn reboot_cmd(
     address: &u32,
     vid: &Option<u16>,
     pid: &Option<u16>,
+    location: &Option<String>,
     start_address: &Option<u32>,
 ) -> Result<(), CliError> {
-    let device = get_dfu_device(vid, pid)?;
+    let device = get_dfu_device(vid, pid, location)?;
     reboot(*address, device, *start_address)?;
     Ok(())
 }

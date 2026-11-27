@@ -14,7 +14,7 @@
 //! ```
 //! use dfu::find_dfu_devices;
 //!
-//! match find_dfu_devices(None, None) {
+//! match find_dfu_devices(None, None, None) {
 //!     Ok(devices) => {
 //!         if devices.is_empty() {
 //!             println!("No DFU devices found");

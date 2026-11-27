@@ -149,7 +149,7 @@ impl DfuDeviceFilter {
     }
 
     fn find_devices(&self) -> Result<Vec<DfuDevice>, dfu::DfuError> {
-        dfu::find_dfu_devices(self.vid, self.pid)
+        dfu::find_dfu_devices(self.vid, self.pid, None)
             .map(|devices| devices.into_iter().map(DfuDevice::new).collect())
     }
 }

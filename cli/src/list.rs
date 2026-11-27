@@ -5,8 +5,9 @@ use crate::CliError;
 pub(crate) fn list_dfu_devices(
     vid: Option<u16>,
     pid: Option<u16>,
+    location: &Option<String>,
 ) -> Result<(), CliError> {
-    let devices = find_dfu_devices(vid, pid)?;
+    let devices = find_dfu_devices(vid, pid, location.as_deref())?;
     if devices.is_empty() {
         println!("No DFU device found");
     } else {
@@ -39,13 +40,15 @@ fn print_segment(prefix: &str, segment: &DfuMemSegment) {
 fn print_devices(devices: &Vec<DfuDevice>) {
     for device in devices {
         println!(
-            "Bus {} Device {:03}: ID {:04x}:{:04x} (ver={}, dfuse={})",
+            "Bus {} Device {:03}: ID {:04x}:{:04x} (ver={}, dfuse={}) location={} serial={}",
             device.bus_id(),
             device.device_address(),
             device.vendor_id(),
             device.product_id(),
             device.device_version(),
             device.is_dfuse(),
+            device.location(),
+            device.serial_number().unwrap_or("-"),
         );
 
         for interface in device.interfaces() {

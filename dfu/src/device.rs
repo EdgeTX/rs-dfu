@@ -91,6 +91,19 @@ impl DfuDevice {
         self.dev.device_address()
     }
 
+    /// Physical port the device is attached to, as `<bus>-<port>[.<port>...]`
+    /// (the format of pyserial's `location` and Linux sysfs). It stays the
+    /// same when the device reboots into another mode, so it identifies a
+    /// device when several share the same serial number.
+    pub fn location(&self) -> String {
+        port_location(self.dev.bus_id(), self.dev.port_chain())
+    }
+
+    /// Serial number string, if the device has one.
+    pub fn serial_number(&self) -> Option<&str> {
+        self.dev.serial_number()
+    }
+
     pub fn vendor_id(&self) -> u16 {
         self.dev.vendor_id()
     }
@@ -310,15 +323,35 @@ fn is_dfu_device(dev: &nusb::DeviceInfo) -> bool {
         .any(|i| is_dfu_mode_interface(i.class(), i.subclass(), i.protocol()))
 }
 
+fn port_location(bus_id: &str, port_chain: &[u8]) -> String {
+    // macOS bus IDs are hex digits of the location ID, pyserial prints
+    // them in decimal
+    #[cfg(target_os = "macos")]
+    let bus = u32::from_str_radix(bus_id, 16)
+        .map(|b| b.to_string())
+        .unwrap_or_else(|_| bus_id.to_string());
+    #[cfg(not(target_os = "macos"))]
+    let bus = bus_id.to_string();
+
+    let ports: Vec<String> = port_chain.iter().map(|p| p.to_string()).collect();
+    format!("{}-{}", bus, ports.join("."))
+}
+
+/// DFU devices, optionally only those with the given vendor ID, product ID
+/// or physical port (see [DfuDevice::location]).
 pub fn find_dfu_devices(
     vid: Option<u16>,
     pid: Option<u16>,
+    location: Option<&str>,
 ) -> Result<Vec<DfuDevice>, DfuError> {
     let devices: Vec<nusb::DeviceInfo> = nusb::list_devices()
         .wait()?
         .filter(|dev| {
             vid.is_none_or(|id| dev.vendor_id() == id)
                 && pid.is_none_or(|id| dev.product_id() == id)
+                && location.is_none_or(|loc| {
+                    port_location(dev.bus_id(), dev.port_chain()) == loc
+                })
         })
         .filter(is_dfu_device)
         .collect();
@@ -339,6 +372,12 @@ fn bcd_version_string(bcd_version: u16) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn port_location_format() {
+        assert_eq!(super::port_location("1", &[3]), "1-3");
+        assert_eq!(super::port_location("2", &[1, 4, 2]), "2-1.4.2");
+    }
+
     use super::*;
 
     #[test]
